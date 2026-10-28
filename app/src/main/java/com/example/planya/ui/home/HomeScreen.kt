@@ -34,9 +34,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tuapp.planes.model.Plan
-import com.tuapp.planes.model.PlanCategory
-import com.tuapp.planes.ui.theme.*
+import com.example.planya.model.Plan
+import com.example.planya.model.PlanCategory
+import com.example.planya.ui.theme.*
 
 @Composable
 fun HomeScreen(

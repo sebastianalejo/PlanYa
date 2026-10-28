@@ -1,15 +1,29 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
+# Gradle / build
+.gradle/
+build/
 /captures
 .externalNativeBuild
 .cxx
+.kotlin/
+
+# Local config (rutas y claves personales)
 local.properties
+
+# IDE
+.idea/
+*.iml
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Salidas de compilación
+*.apk
+*.aab
+*.ap_
+
+# Firmas y secretos
+*.jks
+*.keystore
+google-services.json
+secrets.properties

@@ -1,0 +1,12 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /planes",
+  "rawPath": "/planes",
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/planes"
+    }
+  },
+  "queryStringParameters": null
+}

@@ -1,0 +1,10 @@
+{
+  "Rules": [
+    {
+      "ID": "planya-fotos-temporales",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "fotos/" },
+      "Expiration": { "Days": 1 }
+    }
+  ]
+}

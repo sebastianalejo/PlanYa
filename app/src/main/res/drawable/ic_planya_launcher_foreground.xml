@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- La marca queda dentro de la zona segura de los iconos adaptativos. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.68" android:scaleY="0.68">
+        <path android:fillColor="#3F51B5" android:pathData="M54,16 C35,16 23,29 23,46 C23,67 54,93 54,93 C54,93 85,67 85,46 C85,29 73,16 54,16 Z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M51,30 L57,30 L57,43 L70,43 L70,49 L57,49 L57,62 L51,62 L51,49 L38,49 L38,43 L51,43 Z" />
+    </group>
+</vector>

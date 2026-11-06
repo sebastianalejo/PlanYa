@@ -4,28 +4,32 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.planya.model.Plan
-import com.example.planya.ui.home.HomeScreen
+import androidx.activity.SystemBarStyle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.planya.di.RepositoryModule
+import com.example.planya.presentation.navigation.AppNavigation
+import com.example.planya.presentation.screens.home.HomeViewModel
+import com.example.planya.presentation.screens.access.AccountViewModel
 import com.example.planya.ui.theme.PlanesTheme
+import com.example.planya.data.location.DeviceSelectedLocationStore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // La app usa tema claro incluso si el teléfono está en modo oscuro.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.BLACK),
+            navigationBarStyle = SystemBarStyle.light(android.graphics.Color.WHITE, android.graphics.Color.BLACK)
+        )
         setContent {
             PlanesTheme {
-                HomeScreen(plans = samplePlans)
+                val homeViewModel: HomeViewModel = viewModel(
+                    factory = HomeViewModel.Factory(RepositoryModule.getPlans, RepositoryModule.getPlan,
+                        DeviceSelectedLocationStore(applicationContext))
+                )
+                val account: AccountViewModel = viewModel()
+                AppNavigation(homeViewModel, account)
             }
         }
     }
 }
-
-val samplePlans = listOf(
-    Plan("1", "Carlos M.", null, "Hace 5 min", "Ceviche rápido en 20 min", distance = "500m"),
-    Plan("2", "Lucia R.", null, "Hace 15 min", "Café y charla sobre diseño", distance = "1.2 km", startsSoon = true),
-    Plan(
-        "3", "Mateo P.", null, "Hace 1 hora", "Caminata por el malecón",
-        description = "Busco grupo para caminar un par de horas antes del atardecer.",
-        distance = "2.5 km"
-    )
-)

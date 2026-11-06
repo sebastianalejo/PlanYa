@@ -1,0 +1,11 @@
+{
+  "action": "create",
+  "title": "Café por Miraflores",
+  "description": "Un café y una conversación por Miraflores. Confirma el punto de encuentro con el organizador antes de salir.",
+  "category": "CAFE",
+  "meetingPlace": "Parque Kennedy, Miraflores, Lima",
+  "latitude": -12.1211,
+  "longitude": -77.0297,
+  "durationMinutes": 60,
+  "capacity": 5
+}

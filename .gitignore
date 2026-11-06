@@ -27,3 +27,9 @@ Thumbs.db
 *.keystore
 google-services.json
 secrets.properties
+auth.secrets.properties
+
+# Variables privadas locales (solo se versionan plantillas sin credenciales)
+.env
+.env.*
+!.env.example

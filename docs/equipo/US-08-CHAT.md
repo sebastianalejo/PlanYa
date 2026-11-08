@@ -2,6 +2,9 @@
 
 Responsable: Compañero 2. Rama propuesta: `feature/chat`. Prioridad: alta.
 
+> Entrega en la rama `rodrigo`: ver [US-08-ENTREGA.md](US-08-ENTREGA.md)
+> (qué incluye, contrato final, pasos en AWS y pruebas).
+
 **Como** participante confirmado de un plan,
 **quiero** intercambiar mensajes con su grupo durante el tiempo permitido,
 **para** coordinar el encuentro sin mantener una conversación permanente.

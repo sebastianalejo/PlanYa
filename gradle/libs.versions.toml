@@ -15,8 +15,10 @@ googlePlaces = "4.3.1"
 materialViews = "1.12.0"
 appAuth = "0.11.1"
 mapsCompose = "6.12.0"
+zxing = "3.5.3"
 
 [libraries]
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 google-maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "mapsCompose" }
 appauth = { module = "net.openid:appauth", version.ref = "appAuth" }
 google-places = { module = "com.google.android.libraries.places:places", version.ref = "googlePlaces" }

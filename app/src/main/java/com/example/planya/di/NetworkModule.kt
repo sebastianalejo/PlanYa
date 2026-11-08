@@ -15,6 +15,11 @@ object NetworkModule {
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.profile.ProfileApi::class.java)
     }
+    val benefitsApi: com.example.planya.data.remote.api.BenefitsApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.remote.api.BenefitsApi::class.java)
+    }
     val planPhotos: PlanPhotoApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())

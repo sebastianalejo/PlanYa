@@ -61,6 +61,8 @@ dependencies {
     implementation(libs.google.places)
     // Recursos de vistas que utiliza internamente Places; no cambia el tema Compose.
     implementation(libs.google.material.views)
+    // QR real (Apache-2.0) para mostrar el código de canje generado por el servidor.
+    implementation(libs.zxing.core)
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
     implementation(platform(libs.androidx.compose.bom))

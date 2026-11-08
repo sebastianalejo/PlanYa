@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -40,7 +41,7 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
     onLogin: () -> Unit, onLogout: () -> Unit, onNavigate: (BottomTab) -> Unit, onCreate: () -> Unit,
     avatarUrl: String? = null, onEdit: (() -> Unit)? = null, profileLoading: Boolean = false,
     profileError: String? = null, onRetryProfile: () -> Unit = {}, interestsSyncing: Boolean = false,
-    interestsError: String? = null, onRetryInterests: () -> Unit = {}) {
+    interestsError: String? = null, onRetryInterests: () -> Unit = {}, onBenefits: () -> Unit = {}) {
     val signedIn = name != null
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = busy) { /* Esperar a que termine el cierre de sesión. */ }
@@ -95,6 +96,10 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                         HorizontalDivider(Modifier.padding(start = 64.dp), color = OutlineSoft.copy(alpha = .6f))
                         ProfileOption(Icons.Outlined.Groups, "Me uní", "Encuentros en los que participas", !busy) {
                             if (signedIn) onFeed(PlanFeedScope.JOINED) else onLogin()
+                        }
+                        HorizontalDivider(Modifier.padding(start = 64.dp), color = OutlineSoft.copy(alpha = .6f))
+                        ProfileOption(Icons.Outlined.CardGiftcard, "Mis beneficios", "Cupones de locales aliados", !busy) {
+                            if (signedIn) onBenefits() else onLogin()
                         }
                     }
                 }

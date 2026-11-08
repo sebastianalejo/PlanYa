@@ -30,6 +30,13 @@ import com.example.planya.domain.model.Plan
 import com.example.planya.domain.model.PlanFeedScope
 import com.example.planya.presentation.components.*
 import com.example.planya.presentation.screens.access.*
+import com.example.planya.presentation.screens.benefits.BenefitDetailScreen
+import com.example.planya.presentation.screens.benefits.BenefitsScreen
+import com.example.planya.presentation.screens.benefits.BenefitsViewModel
+import com.example.planya.data.repository.BenefitsRepositoryImpl
+import com.example.planya.domain.usecase.benefits.GetBenefitCodeUseCase
+import com.example.planya.domain.usecase.benefits.GetBenefitUseCase
+import com.example.planya.domain.usecase.benefits.GetBenefitsUseCase
 import com.example.planya.presentation.screens.createplan.*
 import com.example.planya.presentation.screens.home.*
 import com.example.planya.presentation.screens.interests.InterestsScreen
@@ -69,6 +76,14 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
             require(modelClass.isAssignableFrom(ProfileViewModel::class.java))
             val profiles = ProfileRepository(NetworkModule.profileApi, account.repository, photos, userId)
             @Suppress("UNCHECKED_CAST") return ProfileViewModel(profiles, photos.store, userId, extras.createSavedStateHandle()) as T
+        }
+    }
+    fun benefitsFactory(userId: String) = object : ViewModelProvider.Factory {
+        override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
+            require(modelClass.isAssignableFrom(BenefitsViewModel::class.java))
+            val repository = BenefitsRepositoryImpl(NetworkModule.benefitsApi, account.repository, userId)
+            @Suppress("UNCHECKED_CAST")
+            return BenefitsViewModel(GetBenefitsUseCase(repository), GetBenefitUseCase(repository), GetBenefitCodeUseCase(repository), userId) as T
         }
     }
     var showLocation by remember { mutableStateOf(false) }
@@ -214,7 +229,47 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onEdit = if (auth.session != null) ({ controller.navigate("editar-perfil") { launchSingleTop = true } }) else null,
                     profileLoading = profileState?.loading == true, profileError = profileState?.error,
                     onRetryProfile = { model?.load(preserveDraft = true) }, interestsSyncing = auth.interestsSyncing,
-                    interestsError = auth.interestsError, onRetryInterests = account::retryInterests)
+                    interestsError = auth.interestsError, onRetryInterests = account::retryInterests,
+                    onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } })
+            }
+            composable("beneficios") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("beneficios") }
+                } else {
+                    val model: BenefitsViewModel = viewModel(entry, key = "benefits-${session.userId}", factory = benefitsFactory(session.userId))
+                    val benefits by model.state.collectAsStateWithLifecycle()
+                    // Al volver del detalle se recarga para reflejar canjes confirmados por el servidor.
+                    LaunchedEffect(session.userId, auth.loginEvent) { model.load() }
+                    LaunchedEffect(benefits.requiresLogin) { if (benefits.requiresLogin) {
+                        model.acknowledgeLogin(); account.expiredSession(); access("beneficios")
+                    } }
+                    BenefitsScreen(benefits, now, onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onFilter = model::load, onOpen = { controller.navigate("beneficio/${Uri.encode(it.id)}") { launchSingleTop = true } },
+                        onRetry = model::retry, onLoadMore = model::loadMore)
+                }
+            }
+            composable("beneficio/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val session = auth.session
+                val id = entry.arguments?.getString("id")
+                val owner = remember(controller) { runCatching { controller.getBackStackEntry("beneficios") }.getOrNull() }
+                if (session == null || owner == null || id == null) {
+                    LaunchedEffect(Unit) {
+                        if (session == null) access("beneficios")
+                        else controller.navigate("beneficios") { popUpTo("beneficio/{id}") { inclusive = true }; launchSingleTop = true }
+                    }
+                } else {
+                    val model: BenefitsViewModel = viewModel(owner, key = "benefits-${session.userId}", factory = benefitsFactory(session.userId))
+                    val benefits by model.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(id) { model.openDetail(id) }
+                    DisposableEffect(model) { onDispose { model.closeDetail() } }
+                    LaunchedEffect(benefits.requiresLogin) { if (benefits.requiresLogin) {
+                        model.acknowledgeLogin(); account.expiredSession(); access("beneficios")
+                    } }
+                    BenefitDetailScreen(benefits, now, onBack = { controller.popBackStack() },
+                        onShowCode = { model.requestCode(System.currentTimeMillis() / 1000) },
+                        onRetry = { model.openDetail(id) }, onRefresh = model::refreshSelected, onCodeExpired = model::expireCode)
+                }
             }
             composable("editar-perfil") {
                 val session = auth.session

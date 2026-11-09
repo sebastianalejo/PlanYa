@@ -524,6 +524,111 @@ def write_plan(table, event):
         raise
 
 
+BENEFIT_CODE_TTL_SECONDS = 300  # 5 minutos
+
+
+def benefit_id(raw_id):
+    return "beneficio#" + raw_id
+
+
+def code_id(raw_code):
+    return "codigo#" + raw_code
+
+
+def claims_from_event(event):
+    return event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+
+
+def public_benefit(item):
+    return {
+        "id": item["id"].removeprefix("beneficio#"),
+        "userId": item.get("userId"),
+        "merchantName": item.get("merchantName"),
+        "title": item.get("title"),
+        "discount": item.get("discount", ""),
+        "category": item.get("category"),
+        "conditions": item.get("conditions", ""),
+        "limits": item.get("limits"),
+        "logoUrl": item.get("logoUrl"),
+        "validUntil": int(item["validUntil"]) if item.get("validUntil") else None,
+        "status": item.get("status", "DISPONIBLE"),
+        "usedAt": int(item["usedAt"]) if item.get("usedAt") else None,
+    }
+
+
+def list_benefits(table, event):
+    claims = claims_from_event(event)
+    if not claims.get("sub") or claims.get("token_use") != "id":
+        return http_response(401, {"success": False, "error": "Inicia sesion para ver tus beneficios"})
+    query = event.get("queryStringParameters") or {}
+    status_filter = query.get("estado", "DISPONIBLE").upper()
+    if status_filter not in {"DISPONIBLE", "USADO", "VENCIDO"}:
+        return http_response(400, {"success": False, "error": "Estado no valido"})
+    next_key_raw = query.get("nextKey")
+    options = {
+        "FilterExpression": "entityType = :et AND userId = :uid AND #st = :status",
+        "ExpressionAttributeNames": {"#st": "status"},
+        "ExpressionAttributeValues": {":et": "BENEFIT", ":uid": claims["sub"], ":status": status_filter},
+        "Limit": 20,
+    }
+    if next_key_raw:
+        if not isinstance(next_key_raw, str) or len(next_key_raw) > 128:
+            return http_response(400, {"success": False, "error": "nextKey no valido"})
+        options["ExclusiveStartKey"] = {"id": next_key_raw}
+    result = table.scan(**options)
+    items = [public_benefit(i) for i in result.get("Items", [])]
+    last = result.get("LastEvaluatedKey", {}).get("id")
+    return http_response(200, {"success": True, "data": {"items": items, "nextKey": last}})
+
+
+def get_benefit(table, event):
+    claims = claims_from_event(event)
+    if not claims.get("sub") or claims.get("token_use") != "id":
+        return http_response(401, {"success": False, "error": "Inicia sesion para ver este beneficio"})
+    raw_id = (event.get("pathParameters") or {}).get("id")
+    if not isinstance(raw_id, str) or not 1 <= len(raw_id) <= 128:
+        return http_response(400, {"success": False, "error": "Identificador no valido"})
+    item = table.get_item(Key={"id": benefit_id(raw_id)}, ConsistentRead=True).get("Item")
+    if not item or item.get("entityType") != "BENEFIT":
+        return http_response(404, {"success": False, "error": "Beneficio no encontrado"})
+    if item.get("userId") != claims["sub"]:
+        return http_response(403, {"success": False, "error": "No tienes acceso a este beneficio"})
+    return http_response(200, {"success": True, "data": public_benefit(item)})
+
+
+def generate_benefit_code(table, event):
+    claims = claims_from_event(event)
+    if not claims.get("sub") or claims.get("token_use") != "id":
+        return http_response(401, {"success": False, "error": "Inicia sesion para generar el codigo"})
+    raw_id = (event.get("pathParameters") or {}).get("id")
+    if not isinstance(raw_id, str) or not 1 <= len(raw_id) <= 128:
+        return http_response(400, {"success": False, "error": "Identificador no valido"})
+    item = table.get_item(Key={"id": benefit_id(raw_id)}, ConsistentRead=True).get("Item")
+    if not item or item.get("entityType") != "BENEFIT":
+        return http_response(404, {"success": False, "error": "Beneficio no encontrado"})
+    if item.get("userId") != claims["sub"]:
+        return http_response(403, {"success": False, "error": "No tienes acceso a este beneficio"})
+    if item.get("status") == "USADO":
+        return http_response(409, {"success": False, "error": "Este beneficio ya fue utilizado"})
+    now = int(datetime.now(timezone.utc).timestamp())
+    valid_until = item.get("validUntil")
+    if item.get("status") == "VENCIDO" or (valid_until and now >= int(valid_until)):
+        return http_response(410, {"success": False, "error": "Este beneficio ya vencio"})
+    code = str(uuid.uuid4()).replace("-", "").upper()[:12]
+    expires_at = now + BENEFIT_CODE_TTL_SECONDS
+    table.put_item(Item={
+        "id": code_id(code),
+        "entityType": "BENEFIT_CODE",
+        "benefitId": benefit_id(raw_id),
+        "userId": claims["sub"],
+        "code": code,
+        "expiresAt": expires_at,
+        "ttl": expires_at,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    })
+    return http_response(200, {"success": True, "data": {"code": code, "expiresAt": expires_at}})
+
+
 def lambda_handler(event, context):
     table = dynamodb.Table(os.environ["TABLE_NAME"])
 
@@ -539,6 +644,12 @@ def lambda_handler(event, context):
             return write_plan(table, event)
         if event.get("routeKey") == "GET /planes/{id}":
             return get_plan(table, (event.get("pathParameters") or {}).get("id"))
+        if event.get("routeKey") == "GET /beneficios":
+            return list_benefits(table, event)
+        if event.get("routeKey") == "GET /beneficios/{id}":
+            return get_benefit(table, event)
+        if event.get("routeKey") == "POST /beneficios/{id}/codigo":
+            return generate_benefit_code(table, event)
         if event.get("routeKey") != "GET /planes":
             return http_response(404, {"success": False, "error": "Ruta no disponible"})
         query = event.get("queryStringParameters") or {}

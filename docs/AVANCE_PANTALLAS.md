@@ -67,7 +67,7 @@ Los avisos de próxima disponibilidad no cuentan como funciones terminadas.
 | Steve | 7. Detalle | Galería, edición, participación/salida, cancelar, cupos, Cómo llegar y Compartir. | Usuario confirmó los flujos y vencimiento; regresiones automatizadas aprobadas. | 100% del alcance actual |
 | Equipo | 8. Chat temporal | Sin pantalla implementada. | Acceso de participantes, mensajes y expiración efectiva. | 0% |
 | Equipo | 9. Beneficios | Sin pantalla implementada. | Cupones, condiciones, QR, canje y vencimiento. | 0% |
-| Base aquí / completar equipo | 10. Perfil | Pantalla propia y editor: nombre/avatar privados, guardado, borrador y conflictos. Opciones de planes, ubicación, intereses con sincronización/reintento, sesión. | Nombre/foto y reintento de intereses confirmados. Faltan quitar avatar real, confianza/verificación y estadísticas. | 85% |
+| Base aquí / completar equipo | 10. Perfil | Pantalla propia y editor: nombre/avatar privados, guardado, borrador y conflictos. Opciones de planes, ubicación, intereses con sincronización/reintento, sesión. Actividad y confianza de solo lectura desde servidor; estado de verificación autorizado. | Nombre/foto y reintento de intereses confirmados. Faltan quitar avatar real, valoraciones reales/asistencia acreditada, aprobación de verificación y accesos Chat/Beneficios. | 85% (lectura local; pendientes de política/AWS) |
 
 Promedio orientativo de las diez pantallas: **69%** (seis de Steve: **100% del
 alcance actual aceptado**). No equivale a certificar producción, todos los casos
@@ -77,6 +77,17 @@ las capturas y confirmaciones del usuario acreditan creación/listado/edición,
 galería, perfil, inscripción y salida. No equivalen a probar todos los casos
 de concurrencia, caducidad o limpieza física en AWS.
 No hay ninguna inscripción, publicación ni cuenta simulada que se presente como real.
+
+Actualización Perfil US-10 (9 de noviembre de 2026): se agregaron
+`GET /perfil/actividad` y `GET /perfil/confianza` con JWT, y `GET /perfil` informa
+un estado de verificación que solo puede escribir el servidor/admin. Android muestra
+tres contadores (organizados, me uní, asistencias acreditadas), «Sin valoraciones»
+cuando no hay opiniones, promedio/cantidad cuando existen y check azul solo con
+`VERIFIED`. Quitar avatar conserva nombre e intereses; Google no otorga verificación.
+No se implementó la creación de valoraciones ni la acreditación de asistencia: quedan
+pendientes de la política conjunta con Beneficios/integrador. Chat y Beneficios
+permanecen ocultos hasta que existan sus rutas reales. Las rutas nuevas requieren
+Deploy manual en AWS y todavía no se verificaron contra la cuenta real.
 
 Histórico previo: 34 pruebas unitarias y 37 de instrumentación aprobadas.
 Para esta mejora se recompiló la app: pasaron las 34 unitarias y 15 pruebas

@@ -84,3 +84,25 @@ actividad, sin opiniones, media correcta, voto fuera de rango, doble voto, auto-
 usuario ajeno y modificación fraudulenta de verificación. Entregar criterios de
 verificación/asistencia aprobados y prueba real de las nuevas rutas; no screenshots
 con contadores fijos. Si falta la política o backend, marcarlo pendiente, no 100%.
+
+## Decisiones acordadas (9 de noviembre de 2026)
+
+- **Valoraciones/asistencia:** solo lectura en esta entrega. Se implementan
+  `GET /perfil/actividad` y `GET /perfil/confianza`; la creación de votos y la
+  acreditación de asistencia quedan bloqueadas hasta acordar la operación y el rol
+  autorizado con Beneficios/integrador. Sin votos, la UI muestra «Sin valoraciones».
+- **Verificación:** solo estado del servidor (`NONE`, `PENDING`, `VERIFIED`).
+  Admin/DB es el único autorizado a escribirla; no hay auto-verificación ni check
+  por usar Google. `PUT /perfil` rechaza campos privilegiados.
+- **Actividad:** tres contadores separados (organizados, me uní, asistencias
+  acreditadas). «Me uní» es participación, nunca asistencia.
+- **Chat/Beneficios:** opciones ocultas hasta que existan sus rutas reales; la UI
+  acepta callbacks nullable y el integrador los conectará sin botones muertos.
+
+## Estado de esta rama `feature/perfil`
+
+Implementado localmente: actividad y confianza de lectura, estado de verificación,
+tres contadores, «Sin valoraciones», preservación de intereses al editar nombre/foto
+o quitar avatar, y pruebas de regresión. Pendiente: Deploy/verificación real en AWS,
+creación de valoraciones, acreditación de asistencia, aprobación de verificación y
+módulos Chat/Beneficios. No se declara 100%.

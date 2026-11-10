@@ -214,7 +214,12 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onEdit = if (auth.session != null) ({ controller.navigate("editar-perfil") { launchSingleTop = true } }) else null,
                     profileLoading = profileState?.loading == true, profileError = profileState?.error,
                     onRetryProfile = { model?.load(preserveDraft = true) }, interestsSyncing = auth.interestsSyncing,
-                    interestsError = auth.interestsError, onRetryInterests = account::retryInterests)
+                    interestsError = auth.interestsError, onRetryInterests = account::retryInterests,
+                    verification = profileState?.profile?.verification,
+                    activity = profileState?.activity, activityLoading = profileState?.activityLoading == true,
+                    activityError = profileState?.activityError, onRetryActivity = { model?.retryActivity() },
+                    confidence = profileState?.confidence, confidenceLoading = profileState?.confidenceLoading == true,
+                    confidenceError = profileState?.confidenceError, onRetryConfidence = { model?.retryConfidence() })
             }
             composable("editar-perfil") {
                 val session = auth.session
@@ -232,7 +237,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         model.acknowledgeSaved(); controller.popBackStack(); message("Tu perfil se guardó correctamente.")
                     } }
                     EditProfileScreen(editing, model::name, model::select, model::removePhoto, model::error,
-                        onSave = { model.save(account.interests()) }, onReload = { model.load() },
+                        onSave = { model.save() }, onReload = { model.load() },
                         onBack = { model.discard(); controller.popBackStack() })
                 }
             }

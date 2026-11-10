@@ -31,14 +31,16 @@ class InterestsSyncTest {
             return profile
         }
         override suspend fun upload(name: String): String = error("No debe subir una foto")
-        override suspend fun save(name: String, revision: Long, avatarKey: String?, removeAvatar: Boolean, interests: Set<String>): UserProfile {
+        override suspend fun save(name: String, revision: Long, avatarKey: String?, removeAvatar: Boolean, interests: Set<String>?): UserProfile {
             writes++
             assertEquals(profile.name, name); assertNull(avatarKey); assertFalse(removeAvatar)
             beforeSave?.invoke(); beforeSave = null
             if (conflict) throw ProfileConflictException("Cambió")
-            profile = profile.copy(interests = interests.toList(), revision = revision + 1, saved = true)
+            profile = profile.copy(interests = (interests ?: emptySet()).toList(), revision = revision + 1, saved = true)
             return profile
         }
+        override suspend fun activity() = ProfileActivity("user")
+        override suspend fun confidence() = ProfileConfidence("user")
     }
     @Test fun dirtySelectionIsUploadedWithoutChangingNameOrAvatar() = runBlocking {
         val store = Store(InterestSelection(setOf("CAFE"), true, true, 1)); val gateway = Gateway()

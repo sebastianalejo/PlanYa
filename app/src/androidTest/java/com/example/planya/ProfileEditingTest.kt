@@ -22,17 +22,27 @@ class ProfileEditingTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val store = PlanPhotoStore(context)
     private class Gateway : ProfileGateway {
-        var profile = UserProfile("user", "Andrea", "andrea@example.com", avatarKey = "old", revision = 2, saved = true)
+        var profile = UserProfile("user", "Andrea", "andrea@example.com", avatarKey = "old", revision = 2, saved = true,
+            interests = listOf("CAFE"), verification = ProfileVerification("NONE"))
+        var activityData = ProfileActivity("user", 2, 1, 0)
+        var confidenceData = ProfileConfidence("user", 0, null)
         var loadFailure = false
+        var activityFailure = false
+        var confidenceFailure = false
         var saveFailure: Exception? = null
         var saves = 0
         var uploads = 0
         var removed = false
+        var savedInterests: Set<String>? = null
         override suspend fun get(): UserProfile { if (loadFailure) error("Sin red"); return profile }
         override suspend fun upload(name: String): String { uploads++; return "pending" }
-        override suspend fun save(name: String, revision: Long, avatarKey: String?, removeAvatar: Boolean, interests: Set<String>): UserProfile {
-            saves++; saveFailure?.let { throw it }; removed = removeAvatar
-            profile = profile.copy(name = name, revision = revision + 1, avatarKey = if (removeAvatar) null else avatarKey ?: profile.avatarKey, interests = interests.toList())
+        override suspend fun activity(): ProfileActivity { if (activityFailure) error("Sin actividad"); return activityData }
+        override suspend fun confidence(): ProfileConfidence { if (confidenceFailure) error("Sin confianza"); return confidenceData }
+        override suspend fun save(name: String, revision: Long, avatarKey: String?, removeAvatar: Boolean, interests: Set<String>?): UserProfile {
+            saves++; saveFailure?.let { throw it }; removed = removeAvatar; savedInterests = interests
+            profile = profile.copy(name = name, revision = revision + 1,
+                avatarKey = if (removeAvatar) null else avatarKey ?: profile.avatarKey,
+                interests = interests?.toList() ?: profile.interests)
             return profile
         }
     }
@@ -122,5 +132,55 @@ class ProfileEditingTest {
         compose.onNodeWithContentDescription("Volver al perfil").performClick()
         compose.onNodeWithText("Descartar").performClick()
         compose.runOnIdle { assertEquals(1, back) }
+    }
+
+    @Test fun profileLoadsActivityAndEmptyConfidenceFromServer() {
+        val gateway = Gateway()
+        val editor = model(gateway)
+        compose.waitUntil(5000) { editor.state.value.activity != null && editor.state.value.confidence != null }
+        compose.runOnIdle {
+            assertEquals(2, editor.state.value.activity?.organized)
+            assertEquals(1, editor.state.value.activity?.joined)
+            assertEquals(0, editor.state.value.activity?.attended)
+            assertEquals(0, editor.state.value.confidence?.count)
+            assertNull(editor.state.value.confidence?.average)
+            assertEquals("Andrea", editor.state.value.profile?.name)
+        }
+    }
+
+    @Test fun trustFailureDoesNotRemoveProfileAndRetryRecovers() {
+        val gateway = Gateway().apply { activityFailure = true; confidenceFailure = true }
+        val editor = model(gateway)
+        compose.waitUntil(5000) { !editor.state.value.activityLoading && !editor.state.value.confidenceLoading }
+        compose.runOnIdle {
+            assertNull(editor.state.value.activity)
+            assertNull(editor.state.value.confidence)
+            assertTrue(editor.state.value.activityError != null)
+            assertTrue(editor.state.value.confidenceError != null)
+            assertEquals("Andrea", editor.state.value.profile?.name)
+            gateway.activityFailure = false; gateway.confidenceFailure = false
+            gateway.confidenceData = ProfileConfidence("user", 4, 4.25)
+            editor.retryActivity(); editor.retryConfidence()
+        }
+        compose.waitUntil(5000) { editor.state.value.activity != null && editor.state.value.confidence != null }
+        compose.runOnIdle {
+            assertEquals(2, editor.state.value.activity?.organized)
+            assertEquals(4, editor.state.value.confidence?.count)
+            assertEquals(4.25, editor.state.value.confidence?.average ?: 0.0, 0.001)
+            assertNull(editor.state.value.activityError)
+            assertNull(editor.state.value.confidenceError)
+        }
+    }
+
+    @Test fun savingNameOrPhotoWithoutInterestsPreservesTheServerSelection() {
+        val gateway = Gateway()
+        val editor = model(gateway)
+        compose.runOnIdle { editor.name("Andrea actualizada"); editor.save() }
+        compose.waitUntil(5000) { editor.state.value.savedEvent > 0 }
+        compose.runOnIdle {
+            assertNull(gateway.savedInterests)
+            assertEquals(listOf("CAFE"), editor.state.value.profile?.interests)
+            assertEquals(listOf("CAFE"), gateway.profile.interests)
+        }
     }
 }

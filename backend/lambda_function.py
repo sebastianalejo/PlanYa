@@ -21,6 +21,10 @@ CATEGORIES = {"CAFE", "ALMUERZO", "CAMINATA", "FIESTA", "DEPORTES"}
 MAX_PHOTO_BYTES = 1_500_000
 PHOTO_PREFIX = "fotos/"
 MAX_PHOTOS = 4
+PROFILE_ENTITY = "PROFILE"
+ATTENDANCE_ENTITY = "ATTENDANCE"
+RATING_ENTITY = "RATING"
+AUXILIARY_ENTITIES = {PROFILE_ENTITY, ATTENDANCE_ENTITY, RATING_ENTITY}
 
 
 def s3_client():
@@ -196,10 +200,31 @@ def profile_id(user):
     return "perfil#" + user
 
 
+def is_plan_item(item):
+    # Los perfiles, asistencias y valoraciones comparten tabla, pero no son planes.
+    return isinstance(item, dict) and item.get("entityType") not in AUXILIARY_ENTITIES
+
+
+def public_verification(profile):
+    status = profile.get("verificationStatus")
+    if status not in ("PENDING", "VERIFIED"):
+        status = "NONE"
+    result = {"status": status}
+    if status == "VERIFIED":
+        method = profile.get("verificationMethod")
+        if isinstance(method, str) and method.strip():
+            result["method"] = method.strip()
+        verified_at = profile.get("verifiedAt")
+        if isinstance(verified_at, str) and verified_at:
+            result["verifiedAt"] = verified_at
+    return result
+
+
 def public_profile(profile, claims):
     result = {"userId": claims["sub"], "name": profile.get("name") or str(claims.get("name") or "Usuario PlanYa")[:80],
               "email": str(claims.get("email") or ""), "revision": profile.get("revision", 0),
-              "interests": profile.get("interests", []), "saved": profile.get("entityType") == "PROFILE"}
+              "interests": profile.get("interests", []), "saved": profile.get("entityType") == "PROFILE",
+              "verification": public_verification(profile)}
     key = profile.get("avatarKey")
     if key and valid_avatar_key(key, claims["sub"]):
         result["avatarKey"] = key
@@ -233,6 +258,11 @@ def profile_request(table, event):
         if route != "PUT /perfil":
             return http_response(404, {"success": False, "error": "Ruta no disponible"})
         data = read_body(event)
+        privileged = {"verified", "verification", "verificationStatus", "verificationMethod",
+                      "verifiedAt", "verifiedBy", "ratingCount", "ratingSum", "activity",
+                      "organized", "joined", "attended", "average"}
+        if any(field in data for field in privileged):
+            raise ValueError("No puedes modificar datos de confianza desde el perfil")
         name = data.get("name")
         revision = data.get("expectedRevision")
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or any(ord(c) < 32 for c in name):
@@ -286,6 +316,56 @@ def profile_request(table, event):
         raise
 
 
+def activity_request(table, event):
+    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    if not claims.get("sub") or claims.get("token_use") != "id":
+        return http_response(401, {"success": False, "error": "Inicia sesion para ver tu actividad"})
+    user = claims["sub"]
+    organized = joined = attended = 0
+    options = {"ConsistentRead": True}
+    while True:
+        result = table.scan(**options)
+        for item in result.get("Items", []):
+            if not isinstance(item, dict):
+                continue
+            if item.get("entityType") == ATTENDANCE_ENTITY:
+                # Solo una asistencia acreditada por el servidor cuenta; unirse no basta.
+                if item.get("userId") == user:
+                    attended += 1
+                continue
+            if not is_plan_item(item):
+                continue
+            if item.get("ownerId") == user:
+                organized += 1
+            elif user in (item.get("attendeeIds") or []):
+                joined += 1
+        last_key = result.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        options["ExclusiveStartKey"] = last_key
+    return http_response(200, {"success": True, "data": {
+        "userId": user, "organized": organized, "joined": joined, "attended": attended}})
+
+
+def confidence_request(table, event):
+    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    if not claims.get("sub") or claims.get("token_use") != "id":
+        return http_response(401, {"success": False, "error": "Inicia sesion para ver tu confianza"})
+    user = claims["sub"]
+    profile = table.get_item(Key={"id": profile_id(user)}, ConsistentRead=True).get("Item") or {}
+    try:
+        count = int(profile.get("ratingCount", 0) or 0)
+        total = float(profile.get("ratingSum", 0) or 0)
+    except (TypeError, ValueError):
+        count, total = 0, 0.0
+    if count <= 0 or total <= 0:
+        return http_response(200, {"success": True, "data": {"userId": user, "count": 0, "average": None}})
+    average = round(total / count, 2)
+    if not 1 <= average <= 5:
+        return http_response(200, {"success": True, "data": {"userId": user, "count": 0, "average": None}})
+    return http_response(200, {"success": True, "data": {"userId": user, "count": count, "average": average}})
+
+
 def list_plans(table, next_key=None):
     # Una página por petición; nextKey permite solicitar la siguiente.
     options = {"Limit": 25, "ConsistentRead": True}
@@ -297,7 +377,7 @@ def list_plans(table, next_key=None):
     return {
         "success": True,
         "data": {
-            "items": [public_plan(item) for item in result.get("Items", []) if item.get("entityType") != "PROFILE" and item.get("status") != "CANCELLED"
+            "items": [public_plan(item) for item in result.get("Items", []) if is_plan_item(item) and item.get("status") != "CANCELLED"
                       and (item.get("expiresAt") is None or item["expiresAt"] > int(datetime.now(timezone.utc).timestamp()))],
             "nextKey": result.get("LastEvaluatedKey", {}).get("id"),
         },
@@ -308,7 +388,7 @@ def get_plan(table, plan_id):
     if not isinstance(plan_id, str) or not 1 <= len(plan_id) <= 128:
         return http_response(400, {"success": False, "error": "Identificador no valido"})
     plan = table.get_item(Key={"id": plan_id}, ConsistentRead=True).get("Item")
-    if not plan or plan.get("entityType") == "PROFILE" or plan.get("status") == "CANCELLED" or (plan.get("expiresAt") is not None and plan["expiresAt"] <= int(datetime.now(timezone.utc).timestamp())):
+    if not plan or not is_plan_item(plan) or plan.get("status") == "CANCELLED" or (plan.get("expiresAt") is not None and plan["expiresAt"] <= int(datetime.now(timezone.utc).timestamp())):
         return http_response(404, {"success": False, "error": "Plan no disponible"})
     return http_response(200, {"success": True, "data": public_plan(plan)})
 
@@ -530,6 +610,10 @@ def lambda_handler(event, context):
     # Las escrituras HTTP requieren claims verificados por el autorizador JWT.
     # Los eventos de consola no se mezclan con parámetros enviados por la API.
     if "requestContext" in event:
+        if event.get("routeKey") == "GET /perfil/actividad":
+            return activity_request(table, event)
+        if event.get("routeKey") == "GET /perfil/confianza":
+            return confidence_request(table, event)
         if event.get("routeKey") in {"GET /perfil", "PUT /perfil", "POST /perfil/foto"}:
             return profile_request(table, event)
         if event.get("routeKey") == "POST /fotos/subida":

@@ -1,0 +1,12 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /planes/{id}/mensajes",
+  "rawPath": "/planes/ID_DEL_PLAN/mensajes",
+  "pathParameters": { "id": "ID_DEL_PLAN" },
+  "body": "{\"text\":\"Mensaje de prueba desde la consola\",\"clientMessageId\":\"6f1c2b7e-3a4d-4e5f-8a9b-0c1d2e3f4a5b\"}",
+  "isBase64Encoded": false,
+  "requestContext": {
+    "http": { "method": "POST", "path": "/planes/ID_DEL_PLAN/mensajes" },
+    "authorizer": { "jwt": { "claims": { "sub": "SUB_DE_UN_PARTICIPANTE", "token_use": "id" } } }
+  }
+}

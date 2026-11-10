@@ -34,6 +34,9 @@ import com.example.planya.presentation.screens.createplan.*
 import com.example.planya.presentation.screens.home.*
 import com.example.planya.presentation.screens.interests.InterestsScreen
 import com.example.planya.presentation.screens.plandetail.PlanDetailScreen
+import com.example.planya.presentation.screens.chat.ChatScreen
+import com.example.planya.presentation.screens.chat.ChatViewModel
+import com.example.planya.data.repository.ChatRepositoryImpl
 import com.example.planya.presentation.screens.splash.SplashScreen
 import com.example.planya.presentation.screens.profile.ProfileScreen
 import com.example.planya.presentation.screens.profile.*
@@ -274,6 +277,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onCancel = { detail.plan?.let { perform(it, "cancel") } },
                     onEdit = { controller.navigate("editar/${Uri.encode(id)}") },
                     onRetry = { if (id != null) viewModel.openPlan(id) }, area = state.area, nowSeconds = now,
+                    onChat = { if (id != null) controller.navigate("chat/${Uri.encode(id)}") { launchSingleTop = true } },
                     onLocation = { showLocation = true }, onBack = { controller.popBackStack() },
                     onCreate = ::create, onNavigate = ::navigate,
                     onDirections = { plan ->
@@ -292,6 +296,28 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         try { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Compartir plan")) }
                         catch (_: android.content.ActivityNotFoundException) { message("No hay una aplicación para compartir.") }
                     })
+            }
+            // US-08: chat temporal del plan. Requiere sesión; el servidor valida la membresía.
+            composable("chat/{planId}", arguments = listOf(navArgument("planId") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments?.getString("planId")
+                val session = auth.session
+                if (id == null) {
+                    LaunchedEffect(Unit) { controller.popBackStack() }
+                } else if (session == null) {
+                    LaunchedEffect(Unit) { access("chat/${Uri.encode(id)}") }
+                } else {
+                    val chat: ChatViewModel = viewModel(entry, key = "chat-$id-${session.userId}",
+                        factory = ChatViewModel.Factory(id, session.userId,
+                            ChatRepositoryImpl(NetworkModule.chatApi, session.userId) { account.repository.token(session.userId) }))
+                    val chatState by chat.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(chatState.requiresLogin) { if (chatState.requiresLogin) {
+                        chat.acknowledgeLogin(); account.expiredSession(); access("chat/${Uri.encode(id)}")
+                    } }
+                    val plan = detail.plan?.takeIf { it.id == id }
+                    ChatScreen(chatState, userId = session.userId, hostId = plan?.ownerId, fallbackTitle = plan?.title,
+                        onDraftChange = chat::draft, onSend = chat::send, onRetry = chat::retry, onDiscard = chat::discard,
+                        onRefresh = chat::refresh, onLoadOlder = chat::loadOlder, onBack = { controller.popBackStack() })
+                }
             }
         }
         SnackbarHost(snackbars, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 78.dp))

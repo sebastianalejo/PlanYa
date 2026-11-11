@@ -132,3 +132,8 @@ Todavía no se ha desplegado. No concede cupones ni acredita asistencia.
 El paquete final necesita este tercer archivo además de `lambda_function.py`
 y `chat.py`; no desplegar solo uno. Contrato, pruebas y pendientes:
 `../docs/equipo/PASO-2-CANJE-BENEFICIOS.md`.
+
+Actualización local: el mismo módulo también implementa `POST /asistencias`
+para confirmar y emitir atómicamente un cupón desde una oferta administrativa.
+No está desplegado ni tiene aún interfaz de operador. Política y pruebas:
+`../docs/equipo/PASO-3-ASISTENCIA-Y-EMISION.md`.

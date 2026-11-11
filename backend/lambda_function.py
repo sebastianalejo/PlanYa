@@ -740,6 +740,10 @@ def lambda_handler(event, context):
     # Las escrituras HTTP requieren claims verificados por el autorizador JWT.
     # Los eventos de consola no se mezclan con parámetros enviados por la API.
     if "requestContext" in event:
+        if event.get("routeKey") == "POST /asistencias":
+            import benefit_redemption
+            return benefit_redemption.confirm_attendance(table, event, int(datetime.now(timezone.utc).timestamp()),
+                                                         boto3.client("dynamodb"))
         if event.get("routeKey") == "POST /canjes":
             import benefit_redemption
             return benefit_redemption.redeem(table, event, int(datetime.now(timezone.utc).timestamp()),

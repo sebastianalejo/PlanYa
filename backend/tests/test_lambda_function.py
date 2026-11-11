@@ -125,8 +125,21 @@ class LambdaTests(unittest.TestCase):
         self.api.boto3.client.assert_called_once_with("dynamodb")
 
     def test_redemption_records_are_not_public_plans(self):
-        for kind in ("BENEFIT_OPERATOR", "BENEFIT_REDEMPTION", "BENEFIT", "BENEFIT_CODE"):
+        for kind in ("BENEFIT_OPERATOR", "BENEFIT_REDEMPTION", "BENEFIT", "BENEFIT_CODE", "BENEFIT_OFFER", "BENEFIT_ISSUANCE"):
             self.assertFalse(self.api.is_plan_item({"id": "auxiliary", "entityType": kind}))
+
+    def test_attendance_dispatch_uses_integrated_module(self):
+        module = types.ModuleType("benefit_redemption")
+        module.confirm_attendance = Mock(return_value={"statusCode": 403})
+        client = Mock()
+        self.api.boto3.client = Mock(return_value=client)
+        event = self.http_event("POST /asistencias")
+        with patch.dict(sys.modules, {"benefit_redemption": module}):
+            self.assertEqual(self.api.lambda_handler(event, None)["statusCode"], 403)
+        args = module.confirm_attendance.call_args.args
+        self.assertIs(args[0], self.table)
+        self.assertIs(args[1], event)
+        self.assertIs(args[3], client)
 
     def active_plan(self):
         return {"id": "p1", "title": "Cafe", "ownerId": "u1", "category": "CAFE", "capacity": 3,

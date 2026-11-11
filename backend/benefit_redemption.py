@@ -1,4 +1,4 @@
-"""Canje autorizado y atomico. No crea operadores ni concede beneficios."""
+"""Asistencia, emision y canje atomicos. No crea operadores ni ofertas."""
 
 import hashlib
 import json
@@ -15,6 +15,137 @@ def _response(status, message=None, data=None):
 
 def _string(value):
     return {"S": value}
+
+
+def confirm_attendance(table, event, now, transaction_client):
+    """Piloto: una asistencia y un cupon por participante/plan, solo operador."""
+    claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
+    operator_id = claims.get("sub")
+    if not operator_id or claims.get("token_use") != "id":
+        return _response(401, "Inicia sesion para continuar")
+    operator_key = "operador#" + operator_id
+    operator = table.get_item(Key={"id": operator_key}, ConsistentRead=True).get("Item", {})
+    if operator.get("entityType") != "BENEFIT_OPERATOR" or operator.get("active") is not True:
+        return _response(403, "Esta cuenta no puede confirmar asistencias")
+    try:
+        raw = event.get("body") or "{}"
+        if event.get("isBase64Encoded") or not isinstance(raw, str) or len(raw) > 2048:
+            raise ValueError()
+        body = json.loads(raw)
+        if not isinstance(body, dict) or set(body) != {"planId", "userId", "offerId", "requestId"}:
+            raise ValueError()
+        for field in ("planId", "requestId"):
+            if not isinstance(body[field], str) or str(uuid.UUID(body[field])) != body[field]:
+                raise ValueError()
+        for field in ("userId", "offerId"):
+            if not isinstance(body[field], str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", body[field]):
+                raise ValueError()
+    except (ValueError, TypeError, AttributeError):
+        return _response(400, "Datos de asistencia no validos")
+    plan_id, user, offer_id, request_id = (body[key] for key in ("planId", "userId", "offerId", "requestId"))
+    if user == operator_id:
+        return _response(403, "No puedes confirmar tu propia asistencia")
+    fingerprint = hashlib.sha256(json.dumps([plan_id, user, offer_id]).encode()).hexdigest()
+    request_key = "emision#" + str(uuid.uuid5(uuid.NAMESPACE_URL, operator_id + ":" + request_id))
+
+    def replay():
+        record = table.get_item(Key={"id": request_key}, ConsistentRead=True).get("Item")
+        if record is None:
+            return None
+        if record.get("entityType") != "BENEFIT_ISSUANCE" or record.get("userId") != operator_id or record.get("fingerprint") != fingerprint:
+            return _response(409, "No reutilices esta solicitud para otra asistencia")
+        if record.get("merchantId") not in operator.get("merchantIds", []):
+            return _response(403, "Esta cuenta no esta autorizada para este local")
+        return _response(200, data={"benefitId": record["benefitId"], "planId": plan_id,
+                                   "attendanceConfirmed": True, "requestId": request_id})
+
+    previous = replay()
+    if previous is not None:
+        return previous
+    offer_key = "oferta#" + offer_id
+    offer = table.get_item(Key={"id": offer_key}, ConsistentRead=True).get("Item", {})
+    if offer.get("entityType") != "BENEFIT_OFFER":
+        return _response(404, "Oferta no encontrada")
+    merchant = offer.get("merchantId")
+    if not isinstance(merchant, str) or not merchant or merchant not in operator.get("merchantIds", []):
+        return _response(403, "Esta cuenta no esta autorizada para este local")
+    try:
+        start, end, duration, revision = (int(offer[field]) for field in ("validFrom", "validUntil", "couponDurationSeconds", "revision"))
+        if not 60 <= duration <= 30 * 86400 or revision < 1:
+            raise ValueError()
+        for field in ("merchantName", "title", "discount", "conditions", "category"):
+            if not isinstance(offer.get(field), str) or not offer[field].strip() or len(offer[field]) > 2000:
+                raise ValueError()
+        if offer["category"] not in {"CAFE", "ALMUERZO", "CAMINATA", "FIESTA", "DEPORTES"}:
+            raise ValueError()
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return _response(409, "La oferta necesita configuracion administrativa")
+    if offer.get("active") is not True or not start <= now < end:
+        return _response(410, "La oferta no esta vigente")
+    # Una direccion parecida no acredita que un plan pertenezca a un local.
+    if plan_id not in offer.get("planIds", []):
+        return _response(403, "El plan no esta autorizado para esta oferta")
+    plan = table.get_item(Key={"id": plan_id}, ConsistentRead=True).get("Item", {})
+    if not plan or plan.get("entityType") not in (None, "PLAN"):
+        return _response(404, "Plan no encontrado")
+    if plan.get("status") == "CANCELLED":
+        return _response(409, "El plan esta cancelado")
+    if user != plan.get("ownerId") and user not in (plan.get("attendeeIds") or []):
+        return _response(403, "La persona no participa en este plan")
+    try:
+        plan_revision = int(plan["revision"])
+        starts, expires = int(plan["startsAt"]), int(plan["expiresAt"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return _response(409, "El plan necesita actualizar sus datos")
+    # Ventana piloto, no acreditacion automatica: inicio hasta 2 h tras expiracion.
+    if not starts <= now < expires + 7200:
+        return _response(410, "Fuera del horario de confirmacion de asistencia")
+
+    attendance_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "planya-attendance:" + plan_id + ":" + user))
+    coupon_id = str(uuid.uuid5(uuid.NAMESPACE_URL, "planya-attendance-coupon:" + plan_id + ":" + user))
+    attendance = {"id": "asistencia#" + attendance_id, "entityType": "ATTENDANCE",
+                  "userId": user, "planId": plan_id, "merchantId": merchant, "offerId": offer_id,
+                  "verifiedBy": operator_id, "confirmedAt": now}
+    coupon = {"id": "beneficio#" + coupon_id, "entityType": "BENEFIT", "userId": user,
+              "merchantId": merchant, "offerId": offer_id, "planId": plan_id,
+              "status": "DISPONIBLE", "validUntil": min(now + duration, end), "issuedAt": now}
+    coupon.update({field: offer[field] for field in ("merchantName", "title", "discount", "conditions", "category")})
+    if isinstance(offer.get("limits"), str):
+        coupon["limits"] = offer["limits"]
+    receipt = {"id": request_key, "entityType": "BENEFIT_ISSUANCE", "userId": operator_id,
+               "merchantId": merchant, "benefitId": coupon_id, "fingerprint": fingerprint,
+               "confirmedAt": now}
+
+    def put(item):
+        return {"Put": {"TableName": table.name, "Item": {key: {"N": str(value)} if isinstance(value, int) else _string(value)
+                        for key, value in item.items()}, "ConditionExpression": "attribute_not_exists(id)"}}
+
+    operations = [
+        {"ConditionCheck": {"TableName": table.name, "Key": {"id": _string(operator_key)},
+            "ConditionExpression": "entityType = :type AND active = :active AND contains(merchantIds, :merchant)",
+            "ExpressionAttributeValues": {":type": _string("BENEFIT_OPERATOR"), ":active": {"BOOL": True}, ":merchant": _string(merchant)}}},
+        {"ConditionCheck": {"TableName": table.name, "Key": {"id": _string(offer_key)},
+            "ConditionExpression": "entityType = :type AND active = :active AND revision = :revision AND merchantId = :merchant AND contains(planIds, :plan) AND validFrom <= :now AND validUntil > :now",
+            "ExpressionAttributeValues": {":type": _string("BENEFIT_OFFER"), ":active": {"BOOL": True},
+                ":revision": {"N": str(revision)}, ":merchant": _string(merchant), ":plan": _string(plan_id), ":now": {"N": str(now)}}}},
+        {"ConditionCheck": {"TableName": table.name, "Key": {"id": _string(plan_id)},
+            "ConditionExpression": "(attribute_not_exists(entityType) OR entityType = :type) AND revision = :revision AND (attribute_not_exists(#status) OR #status <> :cancelled) AND (ownerId = :user OR contains(attendeeIds, :user)) AND startsAt <= :now AND expiresAt > :cutoff",
+            "ExpressionAttributeNames": {"#status": "status"},
+            "ExpressionAttributeValues": {":type": _string("PLAN"), ":revision": {"N": str(plan_revision)},
+                ":cancelled": _string("CANCELLED"), ":user": _string(user), ":now": {"N": str(now)}, ":cutoff": {"N": str(now - 7200)}}}},
+        put(attendance), put(coupon), put(receipt),
+    ]
+    try:
+        transaction_client.transact_write_items(TransactItems=operations)
+    except Exception as error:
+        if getattr(error, "response", {}).get("Error", {}).get("Code") != "TransactionCanceledException":
+            return _response(503, "Asistencia sin confirmar. Reintenta con la misma solicitud")
+        previous = replay()
+        if previous is not None:
+            return previous
+        return _response(409, "La asistencia ya fue confirmada o cambiaron el plan, la oferta o los permisos")
+    return _response(200, data={"benefitId": coupon_id, "planId": plan_id,
+                               "attendanceConfirmed": True, "requestId": request_id})
 
 
 def redeem(table, event, now, transaction_client):

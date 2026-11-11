@@ -2,6 +2,10 @@
 
 Fecha: 11 de noviembre de 2026. Sin despliegue ni cambios de permisos en AWS.
 
+Actualización posterior: asistencia/emisión ya tienen backend local en
+[Paso 3](PASO-3-ASISTENCIA-Y-EMISION.md). Los pendientes de este paso describen
+el estado de su primera entrega; la interfaz y las pruebas reales siguen faltando.
+
 ## Flujo acordado
 
 Un participante no acredita su asistencia por pulsar «Unirme». Un operador de

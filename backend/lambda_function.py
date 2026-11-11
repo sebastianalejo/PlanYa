@@ -530,6 +530,9 @@ def lambda_handler(event, context):
     # Las escrituras HTTP requieren claims verificados por el autorizador JWT.
     # Los eventos de consola no se mezclan con parámetros enviados por la API.
     if "requestContext" in event:
+        if event.get("routeKey") in {"GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}:
+            import chat  # US-08: chat temporal en su propio módulo (backend/chat.py)
+            return chat.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")))
         if event.get("routeKey") in {"GET /perfil", "PUT /perfil", "POST /perfil/foto"}:
             return profile_request(table, event)
         if event.get("routeKey") == "POST /fotos/subida":

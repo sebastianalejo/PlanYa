@@ -1,6 +1,7 @@
 package com.example.planya.di
 
 import com.example.planya.core.network.ApiConfig
+import com.example.planya.data.remote.api.ChatApi
 import com.example.planya.data.remote.api.PlanApiService
 import com.example.planya.data.remote.api.PlanActionsApi
 import com.example.planya.data.remote.api.PlanPhotoApi
@@ -24,6 +25,11 @@ object NetworkModule {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(PlanActionsApi::class.java)
+    }
+    val chatApi: ChatApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(ChatApi::class.java)
     }
     val planApi: PlanApiService by lazy {
         val client = OkHttpClient.Builder()

@@ -1,0 +1,11 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /planes/{id}/mensajes",
+  "rawPath": "/planes/ID_DEL_PLAN/mensajes",
+  "pathParameters": { "id": "ID_DEL_PLAN" },
+  "queryStringParameters": null,
+  "requestContext": {
+    "http": { "method": "GET", "path": "/planes/ID_DEL_PLAN/mensajes" },
+    "authorizer": { "jwt": { "claims": { "sub": "SUB_DE_UN_PARTICIPANTE", "token_use": "id" } } }
+  }
+}

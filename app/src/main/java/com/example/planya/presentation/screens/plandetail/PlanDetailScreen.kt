@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Edit
@@ -33,7 +34,8 @@ fun PlanDetailScreen(
     onNavigate: (BottomTab) -> Unit, onCreate: () -> Unit,
     userId: String?, actionBusy: Boolean, onJoin: () -> Unit, onLeave: () -> Unit,
     onEdit: () -> Unit, onCancel: () -> Unit,
-    onDirections: (Plan) -> Unit = {}, onShare: (Plan) -> Unit = {}
+    onDirections: (Plan) -> Unit = {}, onShare: (Plan) -> Unit = {},
+    onChat: () -> Unit = {}
 ) {
     var confirmation by remember(plan?.id) { mutableStateOf<String?>(null) }
     val expired = plan?.isExpired(nowSeconds) == true
@@ -165,6 +167,29 @@ fun PlanDetailScreen(
                                 TextButton(onClick = { confirmation = "cancel" }, enabled = !actionBusy) { Text("Cancelar este plan", color = MaterialTheme.colorScheme.error) }
                             }
                             if (joined && !owner) Text("Tu inscripción está confirmada.", color = Indigo, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                    // US-08: chat temporal solo para anfitrión e inscritos, hasta 2 h después del plan.
+                    // El servidor vuelve a comprobar la membresía y el horario en cada lectura y envío.
+                    if ((owner || joined) && plan.expiresAt?.let { nowSeconds < it + CHAT_WINDOW_SECONDS } == true) {
+                        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, OutlineSoft)) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Indigo, modifier = Modifier.size(22.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("Chat del encuentro", style = MaterialTheme.typography.titleSmall, color = IndigoDark)
+                                        Text("Coordina con el grupo sin compartir tu número. Se cierra 2 horas después del plan.",
+                                            style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                                    }
+                                }
+                                Button(onClick = onChat, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                    shape = RoundedCornerShape(50), colors = ButtonDefaults.buttonColors(containerColor = Indigo)) {
+                                    Text("Abrir chat del plan")
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(18.dp))
+                                }
+                            }
                         }
                     }
                     Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(20.dp)) {

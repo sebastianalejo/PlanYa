@@ -106,3 +106,15 @@ es asíncrona y no sustituye la comprobación de vigencia de la app/API.
 La lista sigue siendo paginada por Scan; el cliente descarta vencidos de cada
 página. Una página puede no tener planes visibles y aun así ofrecer «Cargar más».
 Los registros antiguos sin expiresAt se mantienen visibles hasta que se actualicen.
+
+## Chat temporal (US-08)
+
+`chat.py` contiene las rutas `GET/POST /planes/{id}/mensajes`, con JWT y la tabla
+`PlanYaMensajes` (planId + sk, TTL `expiresAt`). Al desplegar, `chat.py` se agrega como
+segundo archivo de la función PlanYaApi junto a `lambda_function.py`. Pasos completos,
+contrato y pruebas: `../docs/equipo/US-08-ENTREGA.md`.
+
+Con Chat habilitado, **no activar TTL en `PlanYaPlanes` con `expiresAt`**: el registro
+se necesita para comprobar participantes durante las dos horas posteriores. El TTL de
+mensajes corresponde únicamente a `PlanYaMensajes.expiresAt`; el servidor bloquea el
+acceso al llegar la hora aunque la eliminación física se retrase.

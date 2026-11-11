@@ -83,7 +83,61 @@ aprobación quedan fuera de su alcance de lectura; no contarlas como implementad
 - La compilación aislada de José fue detenida por presión de memoria del equipo;
   no se registra como compilación completa ni como pruebas JVM aprobadas.
 
-## Orden para continuar
+## Segundo punto de control: Rodrigo — US-08 Chat
+
+Se integró `origin/steve` (`9392244`) porque contiene exactamente la entrega
+de Rodrigo (`6ffbd0b`) sobre la base compartida, sin otros cambios de producto.
+Esto conserva el historial remoto y evita un futuro push forzado. El conflicto
+en `lambda_function.py` se resolvió conservando tanto actividad/confianza de
+Perfil como el despacho hacia `chat.py`; Beneficios y sus correcciones siguen presentes.
+
+Hallazgos corregidos durante la revisión:
+
+- Reconciliar el clientMessageId confirmado al consultar con las burbujas sin
+  confirmar: una respuesta de envío perdida no produce dos burbujas al actualizar.
+- No afirmar «No se envió» si solo se perdió la respuesta; «Envío sin confirmar».
+- Cancelar consultas/envíos pendientes y vaciar historial al perder membresía o
+  sesión. Respuestas atrasadas no pueden restaurarlo, incluso tras reconocer el
+  evento de acceso. Ocultar historial/compositor al alcanzar el cierre conocido,
+  aunque falle la revalidación de red.
+- Comprobar plan de la página y usuario/plan/clientMessageId/texto de la confirmación.
+- Suspender el reloj Compose en segundo plano; mantener actualización manual,
+  sin anunciar tiempo real ni agregar consultas periódicas pagadas.
+- Backend solo admite entidades PLAN o planes legacy; no abrir chat para un
+  registro auxiliar que coincida con un ID válido.
+- Documentación de despliegue coordinada: ambos archivos de la revisión integrada,
+  autorizador JWT existente y comprobación de implementación automática de la etapa.
+
+Pruebas del segundo punto de control:
+
+- **90 pruebas Python aprobadas** (63 anteriores, 26 de Rodrigo y 1 de rechazo
+  de entidades auxiliares).
+- **69 pruebas JVM aprobadas**, cero errores/fallos: 58 anteriores y 11 de Chat
+  (9 de Rodrigo, 2 nuevas de respuesta ajena/confirmación de otra solicitud).
+- APK principal y de instrumentación compilados correctamente. Segundo pase:
+  BUILD SUCCESSFUL en 3 min 56 s con un solo worker/Kotlin in-process.
+- **30 pruebas instrumentadas aprobadas en el Motorola, 137,456 s**: 6 nuevas
+  de Chat y las 24 de Beneficios/Perfil/navegación. Casos nuevos: reintento con
+  el mismo ID, reconciliación de respuesta perdida, revocación con historial
+  atrasado, sesión vencida con actualización atrasada, cierre local sin red y
+  acciones del envío sin confirmar.
+- Primera ronda: 29/30; falló la protección de sesión tras reconocer el evento.
+  Se recompiló el APK incorporando el cierre terminal de acceso; el caso aislado
+  pasó y después la ronda completa pasó 30/30. No se cuenta la primera como éxito.
+- Pruebas con datos/repositorios aislados: no se escribieron mensajes reales en
+  AWS, ni se extrajeron tokens, ni se cerró la sesión real. Instalación con `-r`;
+  al terminar se retira solo el APK auxiliar de pruebas y se vuelve a PlanYa.
+
+**No cerrado al 100%:** falta `GET /conversaciones` y entrada desde Perfil. Un
+plan vencido desaparece del GET público: el backend permite las dos horas restantes,
+pero la app no ofrece reentrada tras abandonar el chat. También faltan comprobar
+tabla `PlanYaMensajes`, TTL, permisos, archivo `chat.py` desplegado y recorrido con
+dos cuentas reales. Las rutas que pegó el usuario sí incluyen GET/POST mensajes
+con JWT e integración Lambda, pero eso no prueba que el módulo funcione en AWS.
+
+No se hizo push ni se modificó AWS en este punto de control.
+
+## Secuencia prevista
 
 1. Resolver y verificar el conjunto José + Sebastián; guardar un merge local
    solo cuando compile y pasen los tests locales. No publicar ni desplegar todavía.

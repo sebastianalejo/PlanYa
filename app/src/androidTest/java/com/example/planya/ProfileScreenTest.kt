@@ -55,8 +55,10 @@ class ProfileScreenTest {
         compose.runOnIdle { assertEquals(PlanFeedScope.OWNED, selected) }
         compose.onNodeWithText("Me uní").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(PlanFeedScope.JOINED, selected) }
-        compose.onNodeWithText("Mis intereses").performScrollTo().performClick()
-        compose.onNodeWithText("Mi ubicación").performScrollTo().performClick()
+        scrollTo("Mis intereses")
+        compose.onNodeWithText("Mis intereses").performClick()
+        scrollTo("Mi ubicación")
+        compose.onNodeWithText("Mi ubicación").performClick()
         compose.runOnIdle { assertEquals(1, interests); assertEquals(1, locations) }
     }
 
@@ -179,5 +181,42 @@ class ProfileScreenTest {
 
     private fun scrollTo(text: String) {
         compose.onNodeWithTag("perfil-lista").performScrollToNode(hasText(text))
+    }
+
+    private fun showFeedback(loading: Boolean = false, failure: String? = null,
+        confidence: ProfileConfidence? = null, retry: () -> Unit = {}) {
+        compose.setContent { PlanesTheme {
+            ProfileScreen(name = "Andrea", email = "andrea@example.com", interests = emptySet(),
+                area = null, hasSavedGoogleLocation = false, busy = false, error = null,
+                onBack = {}, onInterests = {}, onLocation = {}, onFeed = {}, onLogin = {}, onLogout = {},
+                onNavigate = {}, onCreate = {}, confidence = confidence,
+                confidenceLoading = loading, confidenceError = failure, onRetryConfidence = retry)
+        } }
+    }
+
+    @Test fun loadingReputationDoesNotPretendThereAreNoRatings() {
+        showFeedback(loading = true)
+        scrollTo("Consultando tus valoraciones…")
+        compose.onNodeWithText("Consultando tus valoraciones…").assertIsDisplayed()
+        compose.onNodeWithText("Sin valoraciones").assertDoesNotExist()
+        compose.onNodeWithText("0.0").assertDoesNotExist()
+    }
+
+    @Test fun reputationFailureHasWorkingRetryInsteadOfEmptyRating() {
+        var retries = 0
+        showFeedback(failure = "No pudimos conectar.", retry = { retries++ })
+        scrollTo("Reintentar valoraciones")
+        compose.onNodeWithText("Reintentar valoraciones").performClick()
+        compose.onNodeWithText("Sin valoraciones").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, retries) }
+    }
+
+    @Test fun emptyReputationExplainsItIsNotABadScore() {
+        showFeedback(confidence = ProfileConfidence("u1", 0, null))
+        scrollTo("Sin valoraciones")
+        compose.onNodeWithText("Sin valoraciones").assertIsDisplayed()
+        compose.onNodeWithText("Todavía no hay opiniones registradas sobre tus encuentros. Eso no significa una mala calificación.").assertExists()
+        compose.onNodeWithText("La opción de valorar participantes aún no está habilitada en la app.").assertExists()
+        compose.onNodeWithText("0.0").assertDoesNotExist()
     }
 }

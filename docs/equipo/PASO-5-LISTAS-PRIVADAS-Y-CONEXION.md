@@ -118,3 +118,15 @@ ExecutionPolicy Bypass ni pegar solo una versión antigua de lambda_function.py.
 Este paso no ha desplegado código, creado rutas/tablas/ofertas/cuentas ni enviado
 el paquete a terceros. No certifica la aplicación al 100 % por pasar pruebas
 aisladas; queda pendiente el recorrido real y la configuración del laboratorio.
+
+## Confirmaciones posteriores del 11 de noviembre
+
+El usuario desplegó el ZIP de cuatro módulos y conectó las siete rutas anteriores
+a PlanYaApi y al autorizador JWT PlanYaUsuarios. Comprobación sin credenciales:
+GET /planes respondió 200; las siete rutas protegidas respondieron 401.
+Las capturas muestran PlanYaMensajes con planId/sk y TTL expiresAt activo.
+El usuario confirmó chat entre dos cuentas, mapa/GPS y pin hacia el detalle;
+una cuenta normal ve acceso de operadores restringido y Perfil sin valoraciones.
+No se han aprovisionado operadores/ofertas ni validado un canje real.
+Estas confirmaciones sustituyen los pendientes de conexión anteriores, no las
+validaciones de negocio todavía pendientes.

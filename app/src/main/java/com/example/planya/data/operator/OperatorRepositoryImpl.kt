@@ -19,7 +19,7 @@ class OperatorRepositoryImpl(private val api: OperatorApi, private val userId: S
                 required(offer.discount), required(offer.conditions), plans.distinct())
         }, data.nextKey?.takeIf(String::isNotBlank))
     }
-    override suspend fun participants(offerId: String, planId: String): OperatorPlan = request {
+    override suspend fun participants(offerId: String, planId: String): OperatorPlan = request(attendance = true) {
         val data = api.participants(it, offerId, planId).payload()
         identity(data.userId)
         check(data.offerId == offerId && data.planId == planId) { "La respuesta corresponde a otro encuentro." }
@@ -27,7 +27,7 @@ class OperatorRepositoryImpl(private val api: OperatorApi, private val userId: S
             OperatorMember(required(member.userId), required(member.name), member.isHost == true)
         }.filter { member -> member.userId != userId }.distinctBy { member -> member.userId })
     }
-    override suspend fun confirm(offerId: String, planId: String, userId: String, requestId: String): OperatorReceipt = request(writing = true) {
+    override suspend fun confirm(offerId: String, planId: String, userId: String, requestId: String): OperatorReceipt = request(writing = true, attendance = true) {
         val result = api.confirm(it, AttendanceBody(offerId, planId, userId, requestId)).payload()
         check(result.attendanceConfirmed == true) { "El servidor no confirmó la asistencia." }
         receipt(result, requestId)
@@ -45,7 +45,7 @@ class OperatorRepositoryImpl(private val api: OperatorApi, private val userId: S
     private fun <T> OperatorResponse<T>.payload(): T { check(success == true) { "El servidor no confirmó la operación." }; return checkNotNull(data) }
     private fun required(value: String?): String = checkNotNull(value?.takeIf(String::isNotBlank)) { "El servidor devolvió datos incompletos." }
     private fun uuid(value: String?) = value != null && runCatching { UUID.fromString(value).toString() == value }.getOrDefault(false)
-    private suspend fun <T> request(writing: Boolean = false, paging: Boolean = false, block: suspend (String) -> T): T {
+    private suspend fun <T> request(writing: Boolean = false, paging: Boolean = false, attendance: Boolean = false, block: suspend (String) -> T): T {
         try { return block("Bearer ${token()}") }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: HttpException) {
@@ -54,7 +54,13 @@ class OperatorRepositoryImpl(private val api: OperatorApi, private val userId: S
                 403 -> throw OperatorDeniedException()
                 400, 409 -> if (paging) throw OperatorCursorException() else throw IllegalStateException("La solicitud o sus datos cambiaron. Actualiza antes de volver a intentarlo.")
                 404 -> throw IllegalStateException("El servicio de operadores aún no está disponible o el código ya no existe.")
-                410 -> throw IllegalStateException("La oferta, el código o el horario de asistencia ya venció.")
+                // El servidor también devuelve 410 ANTES del inicio. No afirmar
+                // que venció ni inferir el horario usando el reloj del teléfono.
+                410 -> throw IllegalStateException(when {
+                    attendance -> "No se puede confirmar asistencia en este horario. El encuentro puede no haber empezado, haber terminado o la oferta no estar vigente."
+                    writing -> "El beneficio o su código ya venció. Solicita un código vigente."
+                    else -> "La oferta no está vigente. Actualiza las ofertas."
+                })
                 in 500..599 -> if (writing) throw OperatorUncertainException() else throw IllegalStateException("No se pudo consultar el servicio. Reintenta.")
                 else -> throw IllegalStateException("No se pudo completar la operación.")
             }

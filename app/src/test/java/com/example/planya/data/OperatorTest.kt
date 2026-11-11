@@ -91,4 +91,25 @@ class OperatorTest {
         val api = Api().apply { failure = CancellationException("stop") }
         assertTrue(runCatching { repo(api).offers() }.exceptionOrNull() is CancellationException)
     }
+
+    @Test fun attendanceWindowDoesNotClaimAFuturePlanHasExpired() = runBlocking {
+        val api = Api().apply { failure = http(410) }
+        val repository = repo(api)
+        val messages = listOf(
+            runCatching { repository.participants("pilot", planId) }.exceptionOrNull()!!.message!!,
+            runCatching { repository.confirm("pilot", planId, "visitor", requestId) }.exceptionOrNull()!!.message!!)
+        for (message in messages) {
+            assertTrue(message.contains("puede no haber empezado"))
+            assertFalse(message.contains("ya venció"))
+            assertFalse(message.contains("código"))
+        }
+    }
+
+    @Test fun expiredRedemptionAndCatalogKeepTheirOwnExplanations() = runBlocking {
+        val api = Api().apply { failure = http(410) }
+        val repository = repo(api)
+        assertTrue(runCatching { repository.redeem("ABCDEF123456", requestId) }.exceptionOrNull()!!.message!!.contains("código ya venció"))
+        assertEquals("La oferta no está vigente. Actualiza las ofertas.",
+            runCatching { repository.offers() }.exceptionOrNull()!!.message)
+    }
 }

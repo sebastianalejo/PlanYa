@@ -6,7 +6,8 @@ Se mantienen la Home, la paleta y las fuentes acordadas.
 Actualización de integración: las cuatro entregas del equipo ya están unidas en
 `steve` local, con correcciones y pruebas. Mis conversaciones añade la entrada
 desde Perfil al chat de planes vencidos todavía dentro de su ventana permitida.
-No se ha hecho push ni desplegado el backend integrado. Evidencia actual en
+El conjunto integrado hasta `e34d099` se subió a `steve`; después el usuario
+desplegó el ZIP de cuatro módulos actualizado. Evidencia histórica en
 [revisión de merges](equipo/REVISION_MERGES_2026-11-10.md) y
 [Paso 1: Mis conversaciones](equipo/PASO-1-CONVERSACIONES.md).
 Beneficios incorpora también el [Panel del operador](equipo/PASO-4-PANEL-OPERADOR.md),
@@ -14,9 +15,11 @@ con asistencia/emisión/canje locales autorizados, sin datos de demostración en
 el flujo normal de la app ni altas de operadores/ofertas en AWS.
 El [Paso 5](equipo/PASO-5-LISTAS-PRIVADAS-Y-CONEXION.md) conecta las continuaciones
 privadas con Inicio, Mapa y Beneficios: 152 Python, 98 JVM y 73 regresiones
-Android seleccionadas correctas. No cambia la aceptación cloud: el listado real
-volvió a responder 200 tras encender el laboratorio; las rutas nuevas consultadas
-siguen en 404 y falta confirmar tabla/permisos antes del despliegue.
+Android seleccionadas correctas. Después del despliegue, el listado público
+respondió 200 y las siete rutas nuevas devolvieron 401 sin token. El usuario
+confirmó chat con dos cuentas, mapa/GPS y apertura del detalle desde un pin.
+Esto no acredita todavía asistencia, emisión ni canje con un operador real.
+PlanYaMensajes tiene claves planId/sk y TTL expiresAt según las capturas del usuario.
 Los bloques anteriores al inventario conservan el cierre histórico de las seis
 pantallas de Steve; no son el recuento actual de pruebas del conjunto integrado.
 
@@ -73,20 +76,33 @@ Los porcentajes son estimaciones funcionales, con el mismo peso por pantalla.
 Una interfaz implementada o una prueba local no acredita una operación real en AWS.
 Los avisos de próxima disponibilidad no cuentan como funciones terminadas.
 
+Actualización: el usuario confirmó mapa/GPS, pin al detalle y chat con dos
+cuentas. También confirmó asistencia → emisión → recepción → canje → USADO
+en el piloto real de beneficios. No se completó la comparación antes/después
+del recibo para acreditar el doble canje real; escaneo con cámara pendiente.
+Perfil ahora incorpora envío de notas de 1 a 5 para encuentros terminados con
+dos asistencias acreditadas, voto único transaccional y reintento idempotente.
+Código y pruebas no equivalen a un voto real: falta ese recorrido con dos
+personas elegibles. El usuario subió el ZIP de cinco módulos; las rutas nuevas
+GET/POST /valoraciones responden 401 sin sesión. Ver
+[Valoraciones para presentación](equipo/VALORACIONES-PRESENTACION.md).
+También se mejoraron los estados de carga/error/vacío: ver
+[Perfil: estados](equipo/PERFIL-ESTADOS-2026-11-11.md).
+
 | Responsable | Pantalla | Android implementado | Comprobado / pendiente | Avance orientativo |
 | --- | --- | --- | --- | --- |
 | Steve | 1. Splash | Logo transparente, redirección, restauración y renovación de sesión. | Diseño probado; reapertura y renovación confirmadas por usuario. | 100% del alcance actual |
 | Steve | 2. Acceso / Registro | Google y correo, registro, código, recuperación, reenvío y manejo de errores. | Flujo real y renovación confirmados por usuario. Apple no forma parte de esta entrega. | 100% del alcance actual |
 | Steve | 3. Intereses | Selección, persistencia por cuenta, sincronización y reintento sin conexión. | Usuario confirmó reintento y misma cuenta entre dispositivos. | 100% del alcance actual |
 | Steve | 4. Inicio | Listado, búsqueda/filtros sobre páginas cargadas, ubicación, orden y recarga al regresar. | Usuario confirmó caducidad del plan. La búsqueda global del servidor no está implementada. | 100% del alcance actual |
-| Alfonso + integración | 5. Mapa | Pines de la API, filtros, agrupación, ficha, detalle, cámara conservada, paginación, GPS explícito y errores. | Compila y pasa pruebas aisladas; faltan mosaicos/GPS reales y recorrido final. | 90% |
+| Alfonso + integración | 5. Mapa | Pines de la API, filtros, agrupación, ficha, detalle, cámara conservada, paginación, GPS explícito y errores. | Usuario confirmó mapa/GPS y pin al detalle. Falta recorrido real con conexión intermitente. | 95% |
 | Steve | 6. Crear plan | Crear/editar, cámara/galería hasta 4 fotos, portada, retirar, revisar y publicar. | Usuario dio conformidad a fotos y limpieza S3. Usa selector nativo/mapa; contrato Places por placeId para publicación no incluido. | 100% del alcance actual |
 | Steve | 7. Detalle | Galería, edición, participación/salida, cancelar, cupos, Cómo llegar y Compartir. | Usuario confirmó los flujos y vencimiento; regresiones automatizadas aprobadas. | 100% del alcance actual |
-| Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Implementado y probado localmente; falta desplegar lista/mensajes/tabla y probar dos cuentas reales. Actualización manual, no tiempo real. | 90% |
-| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión/canje transaccional; revisión explícita, requestId persistente y cursores privados conectados con Android. | 152 Python, 98 JVM y 73 Android seleccionadas del conjunto correctas. Faltan despliegue, operador/oferta configurados y casos con cuentas reales. Escaneo de cámara pendiente; entrada manual implementada. | 80% |
-| Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza de lectura y estado autorizado de verificación. Accesos a conversaciones, beneficios y operadores. Asistencia acreditada por el piloto de servidor. | Faltan rutas AWS y comprobaciones reales; creación de valoraciones y aprobación de verificación siguen pendientes de política/roles. | 85% (lectura local; pendientes de política/AWS) |
+| Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Usuario confirmó dos cuentas reales. Falta cierre real por vencimiento/pérdida de permisos. Actualización manual, no tiempo real. | 95% |
+| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión/canje transaccional; revisión explícita, requestId persistente y cursores privados conectados con Android. | Usuario confirmó circuito real completo del piloto. Escaneo con cámara y comparación del doble canje real pendientes; entrada manual implementada. | 90% |
+| Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza, estado de verificación y envío de valoraciones elegibles de 1 a 5 con transacción. Accesos a conversaciones, beneficios y operadores. | Falta voto real entre dos asistentes acreditados y proceso de aprobación de verificación. No se presenta un estado vacío como valoración recibida. | 90% |
 
-Promedio orientativo de las diez pantallas: **94,5% (aprox. 95%)** (seis de Steve: **100% del
+Promedio orientativo de las diez pantallas: **97%** (seis de Steve: **100% del
 alcance actual aceptado**). No equivale a certificar producción, todos los casos
 posibles o el producto original completo. Otros módulos conservan su estado real.
 Las seis tienen interfaz y lógica; Google está confirmado por el usuario y

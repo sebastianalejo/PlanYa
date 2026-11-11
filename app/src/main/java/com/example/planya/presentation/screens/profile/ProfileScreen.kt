@@ -12,6 +12,8 @@ import androidx.compose.material.icons.automirrored.outlined.EventNote
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarHalf
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,7 +59,8 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
     onRetryActivity: () -> Unit = {},
     confidence: ProfileConfidence? = null, confidenceLoading: Boolean = false, confidenceError: String? = null,
     onRetryConfidence: () -> Unit = {},
-    onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null, onOperator: (() -> Unit)? = null) {
+    onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null, onOperator: (() -> Unit)? = null,
+    onRatings: (() -> Unit)? = null) {
     val signedIn = name != null
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = busy) { /* Esperar a que termine el cierre de sesión. */ }
@@ -119,7 +123,12 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                     ProfileGroup("Tu actividad") { ActivitySummary(activity, activityLoading, activityError, onRetryActivity) }
                 }
                 if (signedIn) item {
-                    ProfileGroup("Confianza") { ReputationSummary(confidence, confidenceLoading, confidenceError, onRetryConfidence) }
+                    ProfileGroup("Confianza") {
+                        ReputationSummary(confidence, confidenceLoading, confidenceError, onRetryConfidence, onRatings != null)
+                        onRatings?.let { action ->
+                            ProfileOption(Icons.Filled.Star, "Valorar encuentros", "Opiniones de encuentros con asistencia acreditada", !busy, action)
+                        }
+                    }
                 }
                 item {
                     ProfileGroup("Preferencias") {
@@ -197,56 +206,122 @@ private fun VerificationStatus(verification: ProfileVerification?) {
 @Composable
 private fun ActivitySummary(activity: ProfileActivity?, loading: Boolean, error: String?, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (loading) {
+            Text(if (activity == null) "Consultando tu actividad…" else "Actualizando tu actividad…",
+                style = MaterialTheme.typography.bodySmall, color = Indigo)
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
         if (error != null) {
             Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = onRetry, enabled = !loading) { Text("Reintentar actividad") }
         }
         if (activity != null) {
-            Row(Modifier.fillMaxWidth()) {
-                ActivityMetric("Organizados", activity.organized, Modifier.weight(1f))
-                ActivityMetric("Me uní", activity.joined, Modifier.weight(1f))
-                ActivityMetric("Asistencias", activity.attended, Modifier.weight(1f))
+            if (error != null) Text("Mostramos la última información recibida.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.2f) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActivityMetric("Organizados", activity.organized, Modifier.fillMaxWidth(), wide = true)
+                        ActivityMetric("Me uní", activity.joined, Modifier.fillMaxWidth(), wide = true)
+                        ActivityMetric("Asistencias", activity.attended, Modifier.fillMaxWidth(), wide = true)
+                    }
+                } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActivityMetric("Organizados", activity.organized, Modifier.weight(1f))
+                    ActivityMetric("Me uní", activity.joined, Modifier.weight(1f))
+                    ActivityMetric("Asistencias", activity.attended, Modifier.weight(1f))
+                }
             }
-            Text("Las asistencias solo cuentan cuando están acreditadas por el servidor.",
+            Text("Unirte a un plan no confirma tu asistencia. Un operador autorizado debe acreditarla.",
                 style = MaterialTheme.typography.bodySmall, color = TextMuted)
+        } else if (!loading && error == null) {
+            Text("Consulta tus planes organizados, aquellos a los que te uniste y tus asistencias confirmadas.",
+                style = MaterialTheme.typography.bodySmall, color = TextMuted)
+            TextButton(onClick = onRetry) { Text("Consultar actividad") }
         }
     }
 }
 
 @Composable
-private fun ActivityMetric(label: String, value: Int, modifier: Modifier = Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(value.toString(), style = MaterialTheme.typography.headlineSmall, color = IndigoDark)
-        Text(label, style = MaterialTheme.typography.bodySmall, color = TextMuted)
+private fun ActivityMetric(label: String, value: Int, modifier: Modifier = Modifier, wide: Boolean = false) {
+    Surface(modifier, color = ScreenBg, shape = RoundedCornerShape(14.dp)) {
+        if (wide) Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+            Text(value.toString(), style = MaterialTheme.typography.titleLarge, color = IndigoDark)
+        } else Column(Modifier.padding(horizontal = 4.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(value.toString(), style = MaterialTheme.typography.headlineSmall, color = IndigoDark)
+            Text(label, style = MaterialTheme.typography.bodySmall, color = TextMuted)
+        }
     }
 }
 
 @Composable
-private fun ReputationSummary(confidence: ProfileConfidence?, loading: Boolean, error: String?, onRetry: () -> Unit) {
+private fun ReputationSummary(confidence: ProfileConfidence?, loading: Boolean, error: String?, onRetry: () -> Unit, ratingsAvailable: Boolean = false) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (loading) {
+            Text(if (confidence == null) "Consultando tus valoraciones…" else "Actualizando tus valoraciones…",
+                style = MaterialTheme.typography.bodySmall, color = Indigo)
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
         if (error != null) {
             Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = onRetry, enabled = !loading) { Text("Reintentar confianza") }
+            TextButton(onClick = onRetry, enabled = !loading) { Text("Reintentar valoraciones") }
         }
+        if (error != null && confidence != null) Text("Mostramos la última información recibida.",
+            style = MaterialTheme.typography.bodySmall, color = TextMuted)
         when {
-            confidence != null && confidence.count <= 0 -> {
-                Text("Sin valoraciones", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                Text("Cuando recibas valoraciones válidas de otros participantes, aparecerán aquí.",
+            confidence != null && confidence.count == 0 -> {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(color = ChipBg, shape = RoundedCornerShape(14.dp)) {
+                        Icon(Icons.Outlined.Groups, null, Modifier.padding(12.dp).size(24.dp), tint = Indigo)
+                    }
+                    Text("Sin valoraciones", style = MaterialTheme.typography.titleMedium, color = IndigoDark)
+                }
+                RatingStars(null)
+                Text("0 valoraciones · Sin nota todavía", style = MaterialTheme.typography.labelLarge, color = TextMuted)
+                Text("Todavía no hay opiniones registradas sobre tus encuentros. Eso no significa una mala calificación.",
+                    style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                Text(if (ratingsAvailable) "Puedes valorar a otros participantes de encuentros terminados con asistencia acreditada."
+                    else "La opción de valorar participantes aún no está habilitada en la app.",
+                    style = MaterialTheme.typography.bodySmall, color = TextMuted)
+            }
+            confidence != null && confidence.count > 0 && confidence.average?.let { it.isFinite() && it in 1.0..5.0 } == true -> {
+                RatingStars(confidence.average)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.Star, null, modifier = Modifier.size(24.dp), tint = Orange)
+                    Text(String.format(Locale.US, "%.1f", confidence.average),
+                        style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
+                }
+                Text("· ${confidence.count} ${if (confidence.count == 1) "valoración" else "valoraciones"}",
+                    style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                Text("Promedio de las opiniones registradas.",
                     style = MaterialTheme.typography.bodySmall, color = TextMuted)
             }
             confidence != null -> {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.Star, null, modifier = Modifier.size(24.dp), tint = Orange)
-                    Text(String.format(Locale.US, "%.1f", confidence.average ?: 0.0),
-                        style = MaterialTheme.typography.headlineSmall, color = TextPrimary)
-                    Text("· ${confidence.count} ${if (confidence.count == 1) "valoración" else "valoraciones"}",
-                        style = MaterialTheme.typography.bodyMedium, color = TextMuted)
-                }
-                Text("Promedio y cantidad calculados por el servidor.",
-                    style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                Text("No pudimos interpretar tus valoraciones.", color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onRetry, enabled = !loading) { Text("Reintentar valoraciones") }
             }
+            !loading && error == null -> {
+                Text("Consulta tus valoraciones para ver si ya recibiste opiniones.",
+                    style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                TextButton(onClick = onRetry) { Text("Consultar valoraciones") }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun RatingStars(average: Double?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        (1..5).forEach { value ->
+            val icon = when {
+                average == null -> Icons.Outlined.StarBorder
+                average >= value -> Icons.Filled.Star
+                average >= value - 0.5 -> Icons.Filled.StarHalf
+                else -> Icons.Outlined.StarBorder
+            }
+            Icon(icon, null, Modifier.size(28.dp), tint = if (average == null) TextMuted else Orange)
         }
     }
 }

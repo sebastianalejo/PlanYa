@@ -276,7 +276,30 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     confidenceError = profileState?.confidenceError, onRetryConfidence = { model?.retryConfidence() },
                     onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
                     onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } },
-                    onOperator = { controller.navigate("operador") { launchSingleTop = true } })
+                    onOperator = { controller.navigate("operador") { launchSingleTop = true } },
+                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } })
+            }
+            composable("valoraciones") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("valoraciones") }
+                } else {
+                    val ratingsModel: com.example.planya.presentation.screens.profile.RatingsViewModel = viewModel(entry,
+                        key = "ratings-${session.userId}-${auth.loginEvent}",
+                        factory = com.example.planya.presentation.screens.profile.RatingsViewModel.Factory(
+                            com.example.planya.data.profile.RatingsRepository(NetworkModule.ratingsApi, session.userId) {
+                                account.repository.token(session.userId)
+                            }))
+                    val ratingsState by ratingsModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { ratingsModel.load() }
+                    LaunchedEffect(ratingsState.requiresLogin) { if (ratingsState.requiresLogin) {
+                        account.expiredSession(); access("valoraciones")
+                    } }
+                    com.example.planya.presentation.screens.profile.RatingsScreen(ratingsState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = ratingsModel::load, onSelect = ratingsModel::select, onScore = ratingsModel::score,
+                        onReview = ratingsModel::review, onDismiss = ratingsModel::dismiss, onSave = ratingsModel::save)
+                }
             }
             composable("operador") { entry ->
                 val session = auth.session

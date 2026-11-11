@@ -1,5 +1,16 @@
 # Backend inicial de PlanYa
 
+## Actualización: valoraciones (11 de noviembre)
+
+El ZIP actual contiene **cinco** módulos en la raíz: `lambda_function.py`,
+`chat.py`, `benefit_redemption.py`, `operator_panel.py` y **`ratings.py`**.
+No usar el paquete histórico de cuatro módulos para esta versión. Nuevas rutas
+JWT: GET /valoraciones y POST /valoraciones, integración PlanYaApi y autorizador
+PlanYaUsuarios. Guía y limitaciones:
+[Valoraciones para presentación](../docs/equipo/VALORACIONES-PRESENTACION.md).
+Los apartados inferiores que dicen «no desplegado» o «cuatro módulos» son
+históricos anteriores a esta actualización.
+
 ## Estado de esta versión local
 
 Además de la lectura pública ya desplegada, el archivo local incluye creación,

@@ -8,6 +8,16 @@ quitar foto, guardar, descartar con confirmación y recargar ante conflicto.
 Los errores conservan el borrador. No se modifica la cuenta de Google ni el correo.
 No se inventan estrellas, verificación, estadísticas ni datos de otros usuarios.
 
+Además, Perfil muestra actividad y confianza calculadas por el servidor:
+`GET /perfil/actividad` devuelve organizados, unidos y asistencias acreditadas;
+`GET /perfil/confianza` devuelve cantidad y promedio de valoraciones. Registros
+de asistencia (`ATTENDANCE`) y valoraciones (`RATING`) nunca se cuentan como
+planes. Unirse a un plan no acredita asistencia. La verificación es un estado
+del servidor (`NONE`, `PENDING`, `VERIFIED`): iniciar sesión con Google o pulsar
+un botón no la concede. La UI solo muestra el check cuando el servidor devuelve
+`VERIFIED`; no existe auto-verificación. La creación de valoraciones y la
+acreditación de asistencia quedan pendientes de la política del equipo.
+
 El perfil se consulta al abrirlo; al reabrir la app se recupera desde AWS, no de
 una pantalla de demostración. Sin rutas disponibles se muestra un error explícito
 y no se simula un guardado exitoso. El nombre guardado se usa en nuevos planes y
@@ -28,9 +38,13 @@ El perfil conserva también los intereses actuales al guardar su nombre/foto.
 | GET | /perfil | PlanYaUsuarios (JWT existente) |
 | PUT | /perfil | PlanYaUsuarios (JWT existente) |
 | POST | /perfil/foto | PlanYaUsuarios (JWT existente) |
+| GET | /perfil/actividad | PlanYaUsuarios (JWT existente) |
+| GET | /perfil/confianza | PlanYaUsuarios (JWT existente) |
 
-3. En Autorización comprobar el distintivo JWT en las tres. No dejar GET /perfil
-   público ni usar IAM integrado. Conservar el mismo emisor y audiencia del resto.
+3. En Autorización comprobar el distintivo JWT en las cinco rutas. No dejar
+   GET /perfil público ni usar IAM integrado. Conservar el mismo emisor y
+   audiencia del resto. Las dos rutas nuevas usan el `sub` del JWT y nunca un
+   `userId` enviado por Android.
 4. Mantener implementación automática en $default; si no está activa, implementar
    los cambios. No crear otra API, otro bucket, otra tabla ni claves AWS en Android.
 5. Confirmar tiempo máximo de Lambda de 30 segundos para validar y copiar la foto.
@@ -48,6 +62,29 @@ Se utiliza PlanYaPlanes con registros separados por `id=perfil#<sub Cognito>` y
 de planes excluyen estos registros. GET/PUT /perfil siempre usa el sub verificado
 del JWT, nunca un userId que mande Android. El correo procede de Cognito y no se
 actualiza por PUT. expectedRevision protege contra cambios entre dispositivos.
+
+### Actividad, confianza y verificación
+
+- `GET /perfil/actividad` cuenta planes propios (`organized`), planes ajenos donde
+  el sub está en `attendeeIds` (`joined`) y registros `entityType=ATTENDANCE` del
+  propio sub (`attended`). Es histórico: incluye vencidos y cancelados; unirse
+  nunca suma a asistencias. Usa Scan con `ConsistentRead`, permiso que el rol ya
+  necesita para el listado. Las asistencias acreditadas son 0 hasta que exista la
+  operación autorizada que las cree. Un registro de asistencia debe llevar
+  `userId`, `planId`, `accreditedBy` y `accreditedAt`; solo lo escribe el servidor/admin.
+- `GET /perfil/confianza` lee `ratingCount` y `ratingSum` del perfil. Si no hay
+  valoraciones devuelve `count: 0, average: null`; Android muestra «Sin
+  valoraciones» y no cinco estrellas. El promedio se calcula en servidor y se
+  rechazan agregados inválidos. Esta entrega no expone la creación de votos; una
+  futura valoración válida deberá actualizar ambos agregados de forma atómica,
+  solo tras acreditar asistencia y sin auto-votos.
+- `GET /perfil` agrega `verification: {status}` (`NONE`, `PENDING`, `VERIFIED`).
+  Solo una escritura administrativa/DB puede cambiar `verificationStatus`,
+  `verificationMethod`, `verifiedAt` o los agregados de confianza. `PUT /perfil`
+  rechaza esos campos con 400. `email_verified` de Google/Cognito no concede el
+  check de PlanYa.
+- `list_plans` y `get_plan` excluyen `PROFILE`, `ATTENDANCE` y `RATING`; esos
+  registros comparten tabla pero no son planes públicos.
 
 Las fotos son JPEG hasta 1.5 MB, corregidas de orientación y sin EXIF original.
 Una subida pendiente vive en `fotos/perfiles/<hash usuario>/<uuid>.jpg`; la regla
@@ -74,10 +111,22 @@ galería original no se borran. La dirección de búsqueda no se envía al perfi
 6. Dos dispositivos editan la misma revisión: el segundo ve conflicto y conserva
    su borrador. Recargar pide confirmación; si falla, conserva los cambios locales.
 7. Crear un plan nuevo: el nombre del anfitrión debe ser el guardado en PlanYa.
+8. Abrir Perfil: actividad y confianza deben coincidir con el servidor; una cuenta
+   sin valoraciones muestra «Sin valoraciones», no estrellas. Un usuario sin
+   verificación aprobada no debe mostrar check azul aunque use Google.
+9. Quitar el avatar y guardar: al reabrir aparece la imagen alternativa, se
+   conservan nombre e intereses y la foto original de la galería sigue en el teléfono.
+10. Probar con dos cuentas: los contadores y la confianza de una no deben aparecer
+    en la otra. `PUT /perfil` con `verificationStatus`, `ratingCount` o `activity`
+    debe responder 400.
 
 Estas operaciones todavía no se consideran verificadas contra la cuenta real.
 
-Verificación local: compilación correcta; 39 pruebas JVM y 49 Python aprobadas.
-23 casos seleccionados de instrumentación aprobados (6 nuevos de edición de
-Perfil), más revisión visual del editor. Los repositorios de prueba son aislados:
-no se guardaron perfiles reales ni se cerró la sesión del usuario.
+Verificación local: compilación correcta; 50 pruebas JVM y 55 Python aprobadas.
+Suite completa de instrumentación aprobada en emulador Android API 37: 95 casos,
+incluidos 10 de la pantalla Perfil y 9 del editor/actividad/confianza. Las pruebas
+de UI generaron `profile-layout.png`, `edit-profile-layout.png`,
+`profile-trust-empty.png` y `profile-trust-rated.png` en la caché de la app.
+Los repositorios de prueba son aislados: no se guardaron perfiles reales ni se
+cerró la sesión del usuario. Las rutas nuevas aún no se desplegaron/verificaron
+contra la cuenta AWS real.

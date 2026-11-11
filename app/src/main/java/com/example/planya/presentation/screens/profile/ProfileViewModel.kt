@@ -12,7 +12,10 @@ import kotlinx.coroutines.launch
 data class ProfileState(val profile: UserProfile? = null, val name: String = "", val localPhoto: String? = null,
     val removeAvatar: Boolean = false, val loading: Boolean = false, val loaded: Boolean = false,
     val busy: Boolean = false, val photoBusy: Boolean = false, val dirty: Boolean = false,
-    val error: String? = null, val conflict: Boolean = false, val savedEvent: Int = 0, val requiresLogin: Boolean = false)
+    val error: String? = null, val conflict: Boolean = false, val savedEvent: Int = 0, val requiresLogin: Boolean = false,
+    val activity: ProfileActivity? = null, val confidence: ProfileConfidence? = null,
+    val activityLoading: Boolean = false, val confidenceLoading: Boolean = false,
+    val activityError: String? = null, val confidenceError: String? = null)
 
 class ProfileViewModel(private val gateway: ProfileGateway, val store: PlanPhotoStore,
     private val userId: String, private val saved: SavedStateHandle = SavedStateHandle()) : ViewModel() {
@@ -68,9 +71,49 @@ class ProfileViewModel(private val gateway: ProfileGateway, val store: PlanPhoto
                     error = if (changed) "Tu perfil cambió mientras la app estaba cerrada. Recarga antes de guardar; tu borrador sigue aquí." else null,
                     name = if (keep) it.name else profile.name, localPhoto = if (keep) it.localPhoto else null,
                     removeAvatar = keep && it.removeAvatar, dirty = keep) }
+                loadActivity()
+                loadConfidence()
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AuthSessionRequiredException) { _state.update { it.copy(loading = false, requiresLogin = true) } }
             catch (failure: Exception) { _state.update { it.copy(loading = false, error = failure.message ?: "No pudimos cargar tu perfil.") } }
+        }
+    }
+    fun retryActivity() = loadActivity()
+    fun retryConfidence() = loadConfidence()
+    private fun loadActivity() {
+        if (_state.value.activityLoading) return
+        _state.update { it.copy(activityLoading = true, activityError = null) }
+        viewModelScope.launch {
+            try {
+                val activity = gateway.activity()
+                check(activity.userId == userId) { "La actividad recibida no corresponde a tu sesión." }
+                _state.update { it.copy(activity = activity.copy(
+                    organized = activity.organized.coerceAtLeast(0), joined = activity.joined.coerceAtLeast(0),
+                    attended = activity.attended.coerceAtLeast(0)), activityLoading = false, activityError = null) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: AuthSessionRequiredException) { _state.update { it.copy(activityLoading = false, requiresLogin = true) } }
+            catch (failure: Exception) {
+                _state.update { it.copy(activityLoading = false,
+                    activityError = failure.message ?: "No pudimos cargar tu actividad.") }
+            }
+        }
+    }
+    private fun loadConfidence() {
+        if (_state.value.confidenceLoading) return
+        _state.update { it.copy(confidenceLoading = true, confidenceError = null) }
+        viewModelScope.launch {
+            try {
+                val response = gateway.confidence()
+                check(response.userId == userId) { "La confianza recibida no corresponde a tu sesión." }
+                val confidence = if (response.count > 0 && response.average != null && response.average in 1.0..5.0) response
+                    else response.copy(count = 0, average = null)
+                _state.update { it.copy(confidence = confidence, confidenceLoading = false, confidenceError = null) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: AuthSessionRequiredException) { _state.update { it.copy(confidenceLoading = false, requiresLogin = true) } }
+            catch (failure: Exception) {
+                _state.update { it.copy(confidenceLoading = false,
+                    confidenceError = failure.message ?: "No pudimos cargar tu confianza.") }
+            }
         }
     }
     fun acknowledgeLogin() { _state.update { it.copy(requiresLogin = false) } }
@@ -82,7 +125,7 @@ class ProfileViewModel(private val gateway: ProfileGateway, val store: PlanPhoto
         saved["dirty"] = false; saved["remove"] = false; saved["name"] = _state.value.profile?.name.orEmpty()
         _state.update { it.copy(name = it.profile?.name.orEmpty(), localPhoto = null, removeAvatar = false, dirty = false, error = null, conflict = false) }
     }
-    fun save(interests: Set<String>) {
+    fun save(interests: Set<String>? = null) {
         val current = _state.value
         if (!canEdit() || current.conflict) return
         val name = current.name.trim()

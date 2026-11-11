@@ -477,12 +477,16 @@ class LambdaTests(unittest.TestCase):
 
     def test_profile_records_are_never_public_plans(self):
         profile = {"id": "perfil#u1", "entityType": "PROFILE", "name": "Ana", "userId": "u1", "revision": 1}
-        self.table.scan.return_value = {"Items": [profile, {"id": "p1", "title": "Cafe"}], "LastEvaluatedKey": {"id": profile["id"]}}
+        attendance = {"id": "asistencia#p1#u1", "entityType": "ATTENDANCE", "userId": "u1"}
+        rating = {"id": "valoracion#p1#u2#u1", "entityType": "RATING", "targetUserId": "u1"}
+        self.table.scan.return_value = {"Items": [profile, attendance, rating, {"id": "p1", "title": "Cafe"}], "LastEvaluatedKey": {"id": profile["id"]}}
         result = self.api.list_plans(self.table)
         self.assertEqual([item["id"] for item in result["data"]["items"]], ["p1"])
         self.assertEqual(result["data"]["nextKey"], "perfil#u1")
         self.table.get_item.return_value = {"Item": profile}
         self.assertEqual(self.api.get_plan(self.table, "perfil#u1")["statusCode"], 404)
+        self.table.get_item.return_value = {"Item": attendance}
+        self.assertEqual(self.api.get_plan(self.table, "asistencia#p1#u1")["statusCode"], 404)
 
     def test_profile_upload_is_staged_under_temporary_prefix(self):
         self.s3.generate_presigned_post.return_value = {"url": "https://private.example", "fields": {}}
@@ -543,6 +547,170 @@ class LambdaTests(unittest.TestCase):
         response = self.api.lambda_handler(self.http_event("POST /planes", {"title": "Cafe", "latitude": -12,
             "longitude": -77, "capacity": 5, "meetingPlace": "Parque"}), None)
         self.assertEqual(json.loads(response["body"])["data"]["authorName"], "Nombre PlanYa")
+
+    def test_profile_activity_counts_only_own_plans_and_accredited_attendance(self):
+        self.table.scan.return_value = {"Items": [
+            {"id": "p1", "ownerId": "u1", "attendeeIds": ["u1"]},
+            {"id": "p2", "ownerId": "other", "attendeeIds": ["other", "u1"]},
+            {"id": "p3", "ownerId": "other", "attendeeIds": ["other"]},
+            {"id": "perfil#u1", "entityType": "PROFILE", "userId": "u1"},
+            {"id": "asistencia#p2#u1", "entityType": "ATTENDANCE", "userId": "u1"},
+            {"id": "asistencia#p2#other", "entityType": "ATTENDANCE", "userId": "other"},
+            {"id": "valoracion#p2#other#u1", "entityType": "RATING", "targetUserId": "u1"},
+        ]}
+        response = self.api.lambda_handler(self.http_event("GET /perfil/actividad"), None)
+        self.assertEqual(response["statusCode"], 200)
+        data = json.loads(response["body"])["data"]
+        self.assertEqual(data["userId"], "u1")
+        self.assertEqual(data["organized"], 1)
+        self.assertEqual(data["joined"], 1)
+        self.assertEqual(data["attended"], 1)
+        self.table.scan.assert_called_once_with(ConsistentRead=True)
+        self.table.put_item.assert_not_called()
+
+    def test_profile_activity_paginates_and_requires_id_token(self):
+        self.table.scan.side_effect = [
+            {"Items": [{"id": "p1", "ownerId": "u1", "attendeeIds": ["u1"]}], "LastEvaluatedKey": {"id": "p1"}},
+            {"Items": [{"id": "asistencia#p1#u1", "entityType": "ATTENDANCE", "userId": "u1"}]},
+        ]
+        response = self.api.lambda_handler(self.http_event("GET /perfil/actividad"), None)
+        data = json.loads(response["body"])["data"]
+        self.assertEqual((data["organized"], data["joined"], data["attended"]), (1, 0, 1))
+        self.assertEqual(self.table.scan.call_args_list[1].kwargs["ExclusiveStartKey"], {"id": "p1"})
+        unauthorized = self.http_event("GET /perfil/actividad")
+        unauthorized["requestContext"] = {}
+        self.assertEqual(self.api.lambda_handler(unauthorized, None)["statusCode"], 401)
+
+    def test_profile_confidence_is_empty_until_real_ratings_exist(self):
+        self.table.get_item.return_value = {}
+        response = self.api.lambda_handler(self.http_event("GET /perfil/confianza"), None)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(json.loads(response["body"])["data"], {"userId": "u1", "count": 0, "average": None})
+        self.table.get_item.assert_called_once_with(Key={"id": "perfil#u1"}, ConsistentRead=True)
+
+    def test_profile_confidence_uses_server_aggregate_and_rejects_invalid_values(self):
+        self.table.get_item.return_value = {"Item": {"entityType": "PROFILE", "ratingCount": 3, "ratingSum": 13.5}}
+        data = json.loads(self.api.lambda_handler(self.http_event("GET /perfil/confianza"), None)["body"])["data"]
+        self.assertEqual(data, {"userId": "u1", "count": 3, "average": 4.5})
+        for profile in ({"ratingCount": 0, "ratingSum": 10}, {"ratingCount": 2, "ratingSum": 0},
+                        {"ratingCount": 2, "ratingSum": 99}, {"ratingCount": "dos", "ratingSum": "diez"}):
+            self.table.get_item.return_value = {"Item": profile}
+            data = json.loads(self.api.lambda_handler(self.http_event("GET /perfil/confianza"), None)["body"])["data"]
+            self.assertEqual(data, {"userId": "u1", "count": 0, "average": None})
+        unauthorized = self.http_event("GET /perfil/confianza")
+        unauthorized["requestContext"] = {}
+        self.assertEqual(self.api.lambda_handler(unauthorized, None)["statusCode"], 401)
+
+    def test_profile_verification_is_server_authorized_and_google_never_verifies(self):
+        self.table.get_item.return_value = {}
+        event = self.http_event("GET /perfil")
+        event["requestContext"]["authorizer"]["jwt"]["claims"]["email_verified"] = "true"
+        data = json.loads(self.api.lambda_handler(event, None)["body"])["data"]
+        self.assertEqual(data["verification"], {"status": "NONE"})
+        self.table.get_item.return_value = {"Item": {"entityType": "PROFILE", "verificationStatus": "VERIFIED",
+            "verificationMethod": "equipo", "verifiedAt": "2026-11-09T00:00:00+00:00"}}
+        data = json.loads(self.api.lambda_handler(self.http_event("GET /perfil"), None)["body"])["data"]
+        self.assertEqual(data["verification"], {"status": "VERIFIED", "method": "equipo",
+                                                 "verifiedAt": "2026-11-09T00:00:00+00:00"})
+        self.table.get_item.return_value = {"Item": {"entityType": "PROFILE", "verificationStatus": "INVENTED"}}
+        data = json.loads(self.api.lambda_handler(self.http_event("GET /perfil"), None)["body"])["data"]
+        self.assertEqual(data["verification"], {"status": "NONE"})
+
+    def test_profile_rejects_client_supplied_trust_fields(self):
+        self.table.get_item.return_value = {"Item": {"entityType": "PROFILE", "revision": 1}}
+        for field, value in (("verified", True), ("verificationStatus", "VERIFIED"), ("ratingCount", 5),
+                             ("ratingSum", 25), ("activity", {"organized": 99})):
+            response = self.api.lambda_handler(self.http_event("PUT /perfil", {
+                "name": "Ana", "expectedRevision": 1, field: value}), None)
+            self.assertEqual(response["statusCode"], 400)
+        self.table.put_item.assert_not_called()
+
+
+    def review_benefit(self, **changes):
+        item = {"id": "beneficio#review", "entityType": "BENEFIT", "userId": "u1",
+                "merchantName": "Local de prueba", "title": "Cupon de prueba", "status": "DISPONIBLE",
+                "validUntil": int(self.api.datetime.now(self.api.timezone.utc).timestamp()) + 60}
+        item.update(changes)
+        self.table.get_item.return_value = {"Item": item}
+        return item
+
+    def review_benefit_event(self, route):
+        event = self.http_event(route)
+        event["pathParameters"] = {"id": "review"}
+        return event
+
+    def test_integration_private_entities_never_become_public_plans(self):
+        for entity in ("PROFILE", "ATTENDANCE", "RATING", "BENEFIT", "BENEFIT_CODE", "CHAT_MESSAGE"):
+            item = {"id": "private-record", "entityType": entity, "code": "FAKE-PRIVATE", "expiresAt": 9999999999}
+            self.table.scan.return_value = {"Items": [item]}
+            self.table.get_item.return_value = {"Item": item}
+            self.assertEqual(self.api.list_plans(self.table)["data"]["items"], [], entity)
+            self.assertEqual(self.api.get_plan(self.table, item["id"])["statusCode"], 404, entity)
+        for prefix in ("perfil#", "beneficio#", "codigo#", "asistencia#", "valoracion#"):
+            self.assertFalse(self.api.is_plan_item({"id": prefix + "legacy"}))
+
+    def test_integration_edit_profile_preserves_server_trust_and_rating(self):
+        trusted = {"verificationStatus": "VERIFIED", "verificationMethod": "equipo",
+                   "verifiedAt": "2026-11-09T00:00:00Z", "verifiedBy": "operator",
+                   "ratingCount": 2, "ratingSum": Decimal("9")}
+        self.table.get_item.return_value = {"Item": {"id": "perfil#u1", "entityType": "PROFILE",
+            "userId": "u1", "revision": 3, "name": "Antes", **trusted}}
+        response = self.api.lambda_handler(self.http_event("PUT /perfil", {
+            "name": "Nuevo nombre", "expectedRevision": 3, "interests": ["CAFE"]}), None)
+        self.assertEqual(response["statusCode"], 200)
+        written = self.table.put_item.call_args.kwargs["Item"]
+        for key, value in trusted.items():
+            self.assertEqual(written[key], value)
+        self.assertEqual(written["revision"], 4)
+        self.assertEqual(json.loads(response["body"])["data"]["verification"]["status"], "VERIFIED")
+
+    def test_integration_benefits_require_identity(self):
+        for route in ("GET /beneficios", "GET /beneficios/{id}", "POST /beneficios/{id}/codigo"):
+            event = self.review_benefit_event(route)
+            event["requestContext"] = {}
+            self.assertEqual(self.api.lambda_handler(event, None)["statusCode"], 401)
+        self.table.put_item.assert_not_called()
+
+    def test_integration_benefit_cannot_be_read_or_coded_by_another_user(self):
+        self.review_benefit(userId="other")
+        for route in ("GET /beneficios/{id}", "POST /beneficios/{id}/codigo"):
+            self.assertEqual(self.api.lambda_handler(self.review_benefit_event(route), None)["statusCode"], 403)
+        self.table.put_item.assert_not_called()
+
+    def test_integration_benefit_code_never_outlives_coupon(self):
+        item = self.review_benefit()
+        response = self.api.lambda_handler(self.review_benefit_event("POST /beneficios/{id}/codigo"), None)
+        self.assertEqual(response["statusCode"], 200)
+        data = json.loads(response["body"])["data"]
+        self.assertEqual(data["expiresAt"], item["validUntil"])
+        self.assertEqual(self.table.put_item.call_args.kwargs["Item"]["ttl"], item["validUntil"])
+        self.assertNotIn("u1", data["code"])
+
+    def test_integration_benefit_invalid_states_do_not_issue_codes(self):
+        for changes, expected in (({"status": "USADO"}, 409), ({"validUntil": 1}, 410),
+                                  ({"status": "VENCIDO"}, 410), ({"status": "REVOCADO"}, 409)):
+            self.review_benefit(**changes)
+            response = self.api.lambda_handler(self.review_benefit_event("POST /beneficios/{id}/codigo"), None)
+            self.assertEqual(response["statusCode"], expected)
+        self.table.put_item.assert_not_called()
+
+    def test_integration_expired_benefit_is_reported_expired_without_background_writer(self):
+        self.review_benefit(validUntil=1)
+        response = self.api.lambda_handler(self.review_benefit_event("GET /beneficios/{id}"), None)
+        self.assertEqual(json.loads(response["body"])["data"]["status"], "VENCIDO")
+
+    def test_integration_benefit_list_filters_expiration_on_server(self):
+        self.table.scan.return_value = {"Items": []}
+        for status in ("DISPONIBLE", "USADO", "VENCIDO"):
+            event = self.review_benefit_event("GET /beneficios")
+            event["queryStringParameters"] = {"estado": status}
+            self.assertEqual(self.api.lambda_handler(event, None)["statusCode"], 200)
+            query = self.table.scan.call_args.kwargs
+            self.assertEqual(query["ExpressionAttributeValues"][":uid"], "u1")
+            self.assertEqual(":now" in query["ExpressionAttributeValues"], status != "USADO")
+            if status == "VENCIDO":
+                self.assertEqual(query["ExpressionAttributeValues"][":available"], "DISPONIBLE")
+                self.assertIn("validUntil <= :now", query["FilterExpression"])
 
 
 if __name__ == "__main__":

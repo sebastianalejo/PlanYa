@@ -32,8 +32,11 @@ import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 
-private const val STATUS_POLL_MILLIS = 4_000L
+private const val STATUS_POLL_MILLIS = 15_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +45,12 @@ fun BenefitDetailScreen(state: BenefitsUiState, nowSeconds: Long, onBack: () -> 
     val benefit = state.selected
     val code = state.code
     // Mientras el código esté visible se consulta al servidor para confirmar el canje.
-    LaunchedEffect(code?.code) {
-        while (code != null) { delay(STATUS_POLL_MILLIS); onRefresh() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val refresh by rememberUpdatedState(onRefresh)
+    LaunchedEffect(code?.code, lifecycle) {
+        if (code != null) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) { delay(STATUS_POLL_MILLIS); refresh() }
+        }
     }
     LaunchedEffect(code?.code, code?.expiresAt, nowSeconds) { if (code != null && nowSeconds >= code.expiresAt) onCodeExpired() }
     Scaffold(containerColor = ScreenBg,

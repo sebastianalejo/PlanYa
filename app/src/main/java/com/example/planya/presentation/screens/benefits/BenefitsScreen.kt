@@ -63,8 +63,17 @@ fun BenefitsScreen(state: BenefitsUiState, nowSeconds: Long, onBack: () -> Unit,
                     state.isLoading && visible.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     state.errorMessage != null && visible.isEmpty() -> BenefitsMessage(
                         Icons.Outlined.CardGiftcard, "No pudimos cargar tus beneficios", state.errorMessage, "Reintentar", onRetry)
-                    state.loaded && visible.isEmpty() -> BenefitsMessage(Icons.Outlined.CardGiftcard, emptyTitle(state.filter),
-                        "Los beneficios aparecerán aquí cuando un local aliado los asigne a tu cuenta.")
+                    state.loaded && visible.isEmpty() -> Column(Modifier.fillMaxSize()) {
+                        Box(Modifier.weight(1f)) {
+                            BenefitsMessage(Icons.Outlined.CardGiftcard, emptyTitle(state.filter),
+                                if (state.nextKey != null) "Esta página no contiene coincidencias. Puedes consultar la siguiente."
+                                else "Los beneficios aparecerán aquí cuando un local aliado los asigne a tu cuenta.")
+                        }
+                        if (state.nextKey != null) OutlinedButton(onClick = onLoadMore, enabled = !state.isLoadingMore,
+                            modifier = Modifier.fillMaxWidth().padding(20.dp).heightIn(min = 48.dp)) {
+                            Text(if (state.isLoadingMore) "Cargando…" else "Ver más")
+                        }
+                    }
                     else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         items(visible, key = { it.id }) { BenefitCard(it, nowSeconds) { onOpen(it) } }
                         if (state.errorMessage != null) item {

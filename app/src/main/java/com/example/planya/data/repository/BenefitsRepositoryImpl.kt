@@ -48,7 +48,7 @@ class BenefitsRepositoryImpl(private val api: BenefitsApi, private val auth: Aut
             val message = runCatching { Gson().fromJson(failure.response()?.errorBody()?.string(), JsonObject::class.java).get("error")?.asString }.getOrNull()
             throw IllegalStateException(benefitMessage(failure.code(), message))
         } catch (_: IOException) {
-            throw IllegalStateException("Sin conexión. No se generó ningún código ni se registró ningún canje. Intenta de nuevo.")
+            throw IllegalStateException("No pudimos confirmar la operación por un problema de conexión. Actualiza el beneficio antes de volver a intentarlo.")
         }
     }
 }

@@ -77,6 +77,7 @@ class BenefitsViewModel(private val getBenefits: GetBenefitsUseCase, private val
         detailJob = viewModelScope.launch {
             try {
                 val benefit = getBenefit(id)
+                check(benefit.id == id) { "La respuesta corresponde a otro beneficio." }
                 check(benefit.ownerId == userId) { "El beneficio recibido no corresponde a tu sesión." }
                 _state.update { it.copy(selected = benefit, detailLoading = false) }
             } catch (cancelled: CancellationException) { throw cancelled }
@@ -114,6 +115,7 @@ class BenefitsViewModel(private val getBenefits: GetBenefitsUseCase, private val
         viewModelScope.launch {
             try {
                 val benefit = getBenefit(id)
+                if (benefit.id != id) return@launch
                 if (benefit.ownerId != userId) return@launch
                 _state.update { current ->
                     if (current.selected?.id != id) current

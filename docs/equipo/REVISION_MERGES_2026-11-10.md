@@ -72,7 +72,14 @@ aprobación quedan fuera de su alcance de lectura; no contarlas como implementad
   SUCCESSFUL en 12 s, todos los artefactos actuales y tests sin cambios pendientes.
 - Nuevos casos UI en BenefitsIntegrationTest: paginación vacía, generación solo
   por clic, cupón vencido y opción única de Beneficios en Perfil.
-- No hay dispositivo ADB conectado; pruebas visuales/instrumentadas pendientes.
+- Actualización posterior: Motorola conectado y desbloqueado. **24 pruebas
+  instrumentadas aprobadas en 93,6 s**: BenefitsIntegrationTest (4), Perfil UI
+  (10), edición/lógica Perfil (9) y navegación principal (1). Se instalaron APKs
+  con `adb install -r`, sin desinstalar la app principal ni cerrar la sesión real.
+  Pruebas con APIs/usuarios aislados, sin emitir cupones o canjear en AWS.
+  Capturas locales de Perfil revisadas en `app/build/profile-trust-empty.png`
+  y `app/build/profile-trust-rated.png`; los nombres/estadísticas son fixtures
+  de prueba, no datos reales del usuario ni evidencia de rutas AWS desplegadas.
 - La compilación aislada de José fue detenida por presión de memoria del equipo;
   no se registra como compilación completa ni como pruebas JVM aprobadas.
 

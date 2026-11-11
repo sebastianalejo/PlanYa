@@ -145,6 +145,14 @@ categoría, agrupación de coordenadas, ficha con distancia en línea recta y ac
 al detalle, paginación, reintento, cámara conservada y GPS por acción explícita.
 No modifica backend ni requiere nuevas rutas de AWS.
 
+Durante la revisión se comprobó GitHub (`git ls-remote`) y se descargó la punta
+actual `338fbaf`, con padres `43f78b4` y `9392244`: únicamente une Chat en Mapa.
+No contiene cambios adicionales en las funciones de Mapa ni resoluciones manuales
+en el merge. Tras guardar el punto probado `1e618af`, se integró también ese
+historial remoto. El resultado no cambió ningún archivo de código/pruebas
+(`git diff HEAD` vacío antes de esta nota); no reintrodujo las versiones antiguas
+de Chat. La evidencia de compilación/pruebas corresponde al mismo código final.
+
 Correcciones de integración:
 
 - Versionar las mutaciones del mapa: una lista iniciada antes de editar,

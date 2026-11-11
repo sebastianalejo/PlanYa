@@ -137,3 +137,9 @@ Actualización local: el mismo módulo también implementa `POST /asistencias`
 para confirmar y emitir atómicamente un cupón desde una oferta administrativa.
 No está desplegado ni tiene aún interfaz de operador. Política y pruebas:
 `../docs/equipo/PASO-3-ASISTENCIA-Y-EMISION.md`.
+
+El panel Android añade dos lecturas JWT en `operator_panel.py`: ofertas de los
+locales autorizados y participantes de sus encuentros. Los cursores privados de
+este panel reutilizan PlanYaMensajes (TTL 15 minutos). El paquete final pasa a
+cuatro módulos: Lambda, Chat, canje/asistencia y panel. Todavía no desplegado.
+Contrato y pendientes: `../docs/equipo/PASO-4-PANEL-OPERADOR.md`.

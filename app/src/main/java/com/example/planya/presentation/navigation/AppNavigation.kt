@@ -52,6 +52,10 @@ import com.example.planya.presentation.screens.map.MapScreen
 import com.example.planya.presentation.screens.map.MapViewModel
 import com.example.planya.data.location.DeviceLocationRepository
 import com.example.planya.presentation.screens.profile.ProfileScreen
+import com.example.planya.presentation.screens.operator.OperatorScreen
+import com.example.planya.presentation.screens.operator.OperatorViewModel
+import com.example.planya.data.operator.OperatorJournal
+import com.example.planya.data.operator.OperatorRepositoryImpl
 import com.example.planya.presentation.screens.profile.*
 import com.example.planya.data.profile.ProfileRepository
 import androidx.lifecycle.ViewModel
@@ -271,7 +275,30 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     confidence = profileState?.confidence, confidenceLoading = profileState?.confidenceLoading == true,
                     confidenceError = profileState?.confidenceError, onRetryConfidence = { model?.retryConfidence() },
                     onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
-                    onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } })
+                    onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } },
+                    onOperator = { controller.navigate("operador") { launchSingleTop = true } })
+            }
+            composable("operador") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("operador") }
+                } else {
+                    val model: OperatorViewModel = viewModel(entry, key = "operator-${session.userId}-${auth.loginEvent}",
+                        factory = OperatorViewModel.Factory(OperatorRepositoryImpl(NetworkModule.operatorApi, session.userId) {
+                            account.repository.token(session.userId)
+                        }, OperatorJournal(context, session.userId)))
+                    val operatorState by model.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { model.load() }
+                    LaunchedEffect(operatorState.requiresLogin) { if (operatorState.requiresLogin) {
+                        account.expiredSession(); access("operador")
+                    } }
+                    OperatorScreen(operatorState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = { model.load() }, onMore = { model.load(true) }, onTab = model::tab,
+                        onSelect = model::selectPlan, onCatalog = model::showCatalog, onMember = model::reviewAttendance,
+                        onCode = model::code, onReviewCode = model::reviewCode,
+                        onConfirm = model::confirm, onDismiss = model::dismissReview)
+                }
             }
             composable("conversaciones") { entry ->
                 val session = auth.session

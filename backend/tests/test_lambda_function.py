@@ -141,6 +141,16 @@ class LambdaTests(unittest.TestCase):
         self.assertIs(args[1], event)
         self.assertIs(args[3], client)
 
+    def test_operator_read_dispatch_uses_private_cursor_table(self):
+        module = types.ModuleType("operator_panel")
+        module.read = Mock(return_value={"statusCode": 403})
+        for route in ("GET /operador/ofertas", "GET /operador/ofertas/{id}/planes/{planId}"):
+            event = self.http_event(route)
+            with patch.dict(sys.modules, {"operator_panel": module}):
+                self.assertEqual(self.api.lambda_handler(event, None)["statusCode"], 403)
+            self.assertIs(module.read.call_args.args[0], self.table)
+            self.assertIs(module.read.call_args.args[2], event)
+
     def active_plan(self):
         return {"id": "p1", "title": "Cafe", "ownerId": "u1", "category": "CAFE", "capacity": 3,
                 "attendees": ["Steve"], "attendeeIds": ["u1"], "revision": 2, "expiresAt": 4102444800,

@@ -9,12 +9,19 @@ import uuid
 def _response(status, message=None, data=None):
     body = {"success": status == 200}
     body.update({"data": data} if data is not None else {"error": message})
-    return {"statusCode": status, "headers": {"Content-Type": "application/json"},
+    return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"},
             "body": json.dumps(body)}
 
 
 def _string(value):
     return {"S": value}
+
+
+def _valid_operator(operator):
+    merchants = operator.get("merchantIds")
+    return (operator.get("entityType") == "BENEFIT_OPERATOR" and operator.get("active") is True
+            and isinstance(merchants, (list, set)) and 1 <= len(merchants) <= 32
+            and all(isinstance(value, str) and value for value in merchants))
 
 
 def confirm_attendance(table, event, now, transaction_client):
@@ -25,7 +32,7 @@ def confirm_attendance(table, event, now, transaction_client):
         return _response(401, "Inicia sesion para continuar")
     operator_key = "operador#" + operator_id
     operator = table.get_item(Key={"id": operator_key}, ConsistentRead=True).get("Item", {})
-    if operator.get("entityType") != "BENEFIT_OPERATOR" or operator.get("active") is not True:
+    if not _valid_operator(operator):
         return _response(403, "Esta cuenta no puede confirmar asistencias")
     try:
         raw = event.get("body") or "{}"
@@ -83,7 +90,7 @@ def confirm_attendance(table, event, now, transaction_client):
     if offer.get("active") is not True or not start <= now < end:
         return _response(410, "La oferta no esta vigente")
     # Una direccion parecida no acredita que un plan pertenezca a un local.
-    if plan_id not in offer.get("planIds", []):
+    if not isinstance(offer.get("planIds"), (list, set)) or len(offer["planIds"]) > 32 or plan_id not in offer["planIds"]:
         return _response(403, "El plan no esta autorizado para esta oferta")
     plan = table.get_item(Key={"id": plan_id}, ConsistentRead=True).get("Item", {})
     if not plan or plan.get("entityType") not in (None, "PLAN"):
@@ -157,7 +164,7 @@ def redeem(table, event, now, transaction_client):
     # Este registro solo lo provisiona administracion. PUT /perfil no lo modifica.
     operator_key = "operador#" + user
     operator = table.get_item(Key={"id": operator_key}, ConsistentRead=True).get("Item", {})
-    if operator.get("entityType") != "BENEFIT_OPERATOR" or operator.get("active") is not True:
+    if not _valid_operator(operator):
         return _response(403, "Esta cuenta no esta autorizada para canjear")
     try:
         raw = event.get("body") or "{}"

@@ -101,6 +101,11 @@ class RedemptionTests(unittest.TestCase):
         self.assertEqual(self.call(event)["statusCode"], 403)
         self.assertEqual(self.store.writes, 0)
 
+    def test_malformed_merchant_permission_is_not_treated_as_substring_access(self):
+        self.store.items["operador#staff"]["merchantIds"] = "test-local-other"
+        self.assertEqual(self.call()["statusCode"], 403)
+        self.assertEqual(self.store.writes, 0)
+
     def test_missing_auth_or_access_token_rejected(self):
         self.assertEqual(self.call({"body": "{}"})["statusCode"], 401)
         event = self.event()

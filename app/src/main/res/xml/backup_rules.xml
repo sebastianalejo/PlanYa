@@ -6,6 +6,7 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
+    <exclude domain="sharedpref" path="operator_requests.xml" />
     <exclude domain="file" path="plan_photos/" />
     <exclude domain="sharedpref" path="auth_session.xml" />
     <exclude domain="sharedpref" path="selected_location.xml" />

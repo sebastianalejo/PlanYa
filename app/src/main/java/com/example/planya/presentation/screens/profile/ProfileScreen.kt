@@ -56,7 +56,7 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
     onRetryActivity: () -> Unit = {},
     confidence: ProfileConfidence? = null, confidenceLoading: Boolean = false, confidenceError: String? = null,
     onRetryConfidence: () -> Unit = {},
-    onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null) {
+    onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null, onOperator: (() -> Unit)? = null) {
     val signedIn = name != null
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = busy) { /* Esperar a que termine el cierre de sesión. */ }
@@ -143,6 +143,11 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                         onBenefits?.let {
                             ProfileOption(Icons.Outlined.CardGiftcard, "Mis beneficios", "Cupones y descuentos disponibles", !busy, it)
                         }
+                    }
+                }
+                if (signedIn && onOperator != null) item {
+                    ProfileGroup("Personal autorizado") {
+                        ProfileOption(Icons.Outlined.Lock, "Acceso de operadores", "El servidor comprueba los permisos de esta cuenta", !busy, onOperator)
                     }
                 }
                 if (error != null) item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }

@@ -1,5 +1,22 @@
 # US-09 — Consultar y canjear beneficios reales
 
+## Estado de integración local — 11 de noviembre de 2026
+
+La especificación original de abajo describe el encargo inicial, no un inventario
+actual de archivos faltantes. Ya existen consulta/detalle/código de usuario y un
+panel separado de operador, además del backend transaccional de asistencia,
+emisión desde oferta y canje. No se ha desplegado el conjunto ni se han creado
+operadores u ofertas en AWS. No hay descuentos comerciales reales.
+
+El piloto exige oferta/plan autorizados por administración, comprobación humana
+de presencia y máximo una asistencia/cupón por persona y plan. La entrada de
+código de canje es manual; no hay escáner de cámara todavía. Estado, contrato y
+pendientes: [Paso 4: Panel del operador](PASO-4-PANEL-OPERADOR.md).
+
+Sigue pendiente corregir cursores antiguos de planes/beneficios antes de cerrar
+privacidad, probar el despliegue y recorrer los casos con cuentas reales. No
+considerar cerrada la US solo por compilar o mostrar un QR.
+
 Responsable: Compañero 3. Rama propuesta: `feature/beneficios`. Prioridad: media.
 
 **Como** participante de encuentros en locales aliados,

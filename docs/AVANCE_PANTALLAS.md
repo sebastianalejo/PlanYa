@@ -9,6 +9,9 @@ desde Perfil al chat de planes vencidos todavía dentro de su ventana permitida.
 No se ha hecho push ni desplegado el backend integrado. Evidencia actual en
 [revisión de merges](equipo/REVISION_MERGES_2026-11-10.md) y
 [Paso 1: Mis conversaciones](equipo/PASO-1-CONVERSACIONES.md).
+Beneficios incorpora también el [Panel del operador](equipo/PASO-4-PANEL-OPERADOR.md),
+con asistencia/emisión/canje locales autorizados, sin datos de demostración en
+el flujo normal de la app ni altas de operadores/ofertas en AWS.
 Los bloques anteriores al inventario conservan el cierre histórico de las seis
 pantallas de Steve; no son el recuento actual de pruebas del conjunto integrado.
 
@@ -75,10 +78,10 @@ Los avisos de próxima disponibilidad no cuentan como funciones terminadas.
 | Steve | 6. Crear plan | Crear/editar, cámara/galería hasta 4 fotos, portada, retirar, revisar y publicar. | Usuario dio conformidad a fotos y limpieza S3. Usa selector nativo/mapa; contrato Places por placeId para publicación no incluido. | 100% del alcance actual |
 | Steve | 7. Detalle | Galería, edición, participación/salida, cancelar, cupos, Cómo llegar y Compartir. | Usuario confirmó los flujos y vencimiento; regresiones automatizadas aprobadas. | 100% del alcance actual |
 | Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Implementado y probado localmente; falta desplegar lista/mensajes/tabla y probar dos cuentas reales. Actualización manual, no tiempo real. | 90% |
-| José + integración | 9. Beneficios | Lista/detalle, filtros y QR. Backend local de asistencia, emisión desde oferta y canje transaccional por operador, con pruebas de concurrencia/reintento. | Faltan interfaz/consultas de operador, cursores opacos, despliegue y pruebas reales. 131 pruebas Python del conjunto; no equivalen a aceptación cloud. Mostrar QR no significa canjear. | 60% |
-| Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza de lectura y estado autorizado de verificación. Accesos a Mis conversaciones y Beneficios. | Faltan nuevas rutas AWS y comprobaciones reales; creación de valoraciones, acreditación y aprobación dependen de política/roles aún no implementados. | 85% (lectura local; pendientes de política/AWS) |
+| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión desde oferta y canje transaccional; revisión explícita y reintento con requestId persistente. | 142 pruebas Python y 12 pruebas Android del panel aprobadas localmente. Faltan cursores privados de rutas antiguas, despliegue, operador/oferta configurados y casos con cuentas reales. Escaneo de cámara pendiente; entrada manual de código implementada. | 80% |
+| Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza de lectura y estado autorizado de verificación. Accesos a conversaciones, beneficios y operadores. Asistencia acreditada por el piloto de servidor. | Faltan rutas AWS y comprobaciones reales; creación de valoraciones y aprobación de verificación siguen pendientes de política/roles. | 85% (lectura local; pendientes de política/AWS) |
 
-Promedio orientativo de las diez pantallas: **92,5% (aprox. 93%)** (seis de Steve: **100% del
+Promedio orientativo de las diez pantallas: **94,5% (aprox. 95%)** (seis de Steve: **100% del
 alcance actual aceptado**). No equivale a certificar producción, todos los casos
 posibles o el producto original completo. Otros módulos conservan su estado real.
 Las seis tienen interfaz y lógica; Google está confirmado por el usuario y

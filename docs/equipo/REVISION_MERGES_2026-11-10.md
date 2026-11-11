@@ -230,3 +230,23 @@ Sin push ni despliegue. Contrato, límites y configuración posterior en
 
 Cada paso distingue: conflicto resuelto, compila, tests locales, prueba en teléfono
 y operación AWS real. Un merge sin conflictos no demuestra los otros cuatro.
+
+### Beneficios y panel de operador — 11 de noviembre
+
+Los pasos 2 y 3 añadieron canje y asistencia/emisión transaccionales locales.
+El paso 4 integra Perfil → Acceso de operadores, ofertas propias/encuentros/
+participantes autorizados, revisión explícita, entrada manual de código y
+requestId persistente por hash de cuenta/operación. No se crean permisos ni
+ofertas desde Android. Sin escáner de cámara ni descuentos ficticios precargados.
+
+Evidencia final: 142 Python, 92 JVM, compilación de app/test APK correcta y
+69 regresiones Android seleccionadas correctas (320,4 s). Captura aislada
+revisada a 320 dp y fuente 1,4; se corrigió una etiqueta que se partía apilando
+las opciones en pantallas estrechas. No se desinstaló la app principal ni se
+cerró su sesión real. Solo se retiró el APK auxiliar de pruebas al terminar.
+
+Pendientes: cursores opacos en las rutas antiguas de planes/beneficios, permisos
+y rutas realmente desplegados, operador/oferta/plan de prueba administrativos,
+doble cuenta, canje/QR real y comprobación GPS/mosaicos. El backend final requiere
+cuatro archivos, incluido `operator_panel.py`. No hubo push ni despliegue.
+Contrato completo: [Paso 4](PASO-4-PANEL-OPERADOR.md).

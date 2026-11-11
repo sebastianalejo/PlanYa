@@ -11,6 +11,11 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    val operatorApi: com.example.planya.data.operator.OperatorApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.operator.OperatorApi::class.java)
+    }
     val profileApi: com.example.planya.data.profile.ProfileApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())

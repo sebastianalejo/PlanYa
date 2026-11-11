@@ -137,15 +137,69 @@ con JWT e integración Lambda, pero eso no prueba que el módulo funcione en AWS
 
 No se hizo push ni se modificó AWS en este punto de control.
 
-## Secuencia prevista
+## Tercer punto de control: Alfonso — US-07 Mapa
 
-1. Resolver y verificar el conjunto José + Sebastián; guardar un merge local
-   solo cuando compile y pasen los tests locales. No publicar ni desplegar todavía.
-2. Revisar `origin/rodrigo`, luego integrar Chat en un merge separado y repetir
-   pruebas. Su commit ya es ancestro de origin/steve: coordinar con ese historial.
-3. Revisar e integrar `origin/feature/mapa` por separado y repetir pruebas.
-4. Validar pantallas en teléfono, después rutas/configuración AWS con autorización.
-5. Preparar push normal solo tras revisar que el historial remoto quede integrado.
+`origin/feature/mapa` (`43f78b4`) se integró sobre el punto de control de Chat
+`d37d866`, sin conflictos textuales. Entrega pines de planes reales, filtros por
+categoría, agrupación de coordenadas, ficha con distancia en línea recta y acceso
+al detalle, paginación, reintento, cámara conservada y GPS por acción explícita.
+No modifica backend ni requiere nuevas rutas de AWS.
+
+Correcciones de integración:
+
+- Versionar las mutaciones del mapa: una lista iniciada antes de editar,
+  publicar o cancelar no puede deshacer un cambio confirmado ni revivir un pin.
+- Agregar los planes nuevos al mapa, no solo reemplazar IDs que ya estaban;
+  conectar también la publicación desde el editor.
+- Al recibir el detalle actualizado, reconciliar el pin. Una indisponibilidad
+  definitiva comunica su ID al mapa; un error transitorio conserva los datos.
+- En paginación, una versión más reciente del mismo ID reemplaza la anterior.
+- Separar el aviso de vista inicial y «Mi ubicación» en filas para teléfonos
+  estrechos/texto grande; no mostrar un vacío encima del aviso de SDK ausente.
+- Si desaparece el plan elegido de un grupo y queda solo uno, seleccionar el
+  restante y mantener disponible «Ver detalles».
+- No describir un GPS aproximado como si fuera una dirección elegida manualmente.
+
+Comprobación de lectura del GET público `/planes`: success true, 2 registros,
+1 con latitude/longitude y sin siguiente página. No se escribieron planes ni
+se imprimieron ubicaciones personales/tokens. El mapa no inventa coordenadas
+para los registros sin ubicación.
+
+Pruebas del tercer punto de control:
+
+- Compilación de APK principal y de instrumentación correcta: BUILD SUCCESSFUL
+  en 5 min 49 s, un solo worker y Kotlin in-process.
+- **77 pruebas JVM aprobadas**, sin errores/fallos: las 69 anteriores y los 8
+  casos de pines entregados por Alfonso.
+- **47 pruebas instrumentadas aprobadas en el Motorola en 215,059 s**: 12 de
+  Mapa, 5 de ciclo de vida y las 30 del conjunto Chat/Beneficios/Perfil/navegación.
+- Mapa: edición/publicación/cancelación frente a respuesta atrasada, página
+  vacía con cursor, actualización de duplicados, reintento de la misma página,
+  cámara/filtro/GPS explícito, selección de pin y detalle por ID, grupos que
+  pierden un miembro, vencimiento, controles sin solaparse a 320 dp/texto grande,
+  falta de SDK, aviso de datos previos y CTA accesible con texto grande.
+- El servidor conserva **90 pruebas Python aprobadas**; no se modificó backend.
+- Instalación de ambos APKs con `adb install -r`; se conserva la sesión y no
+  se desinstala la app principal. Al cerrar se elimina solo el APK de pruebas.
+
+Las pruebas nuevas usan repositorio/GPS/lienzo aislados, sin crear cargas del SDK
+de Google Maps ni modificar permisos reales del teléfono. Eso comprueba lógica
+y controles, no sustituye comprobar mosaicos, clave restringida y GPS real en la app.
+
+No se hizo push ni se modificó AWS/Google Cloud.
+
+## Próximos pasos tras estos puntos de control
+
+1. Conjunto José + Sebastián: integrado, corregido y probado localmente.
+2. Chat de Rodrigo: integrado, corregido y probado localmente.
+3. Mapa de Alfonso: integrado, corregido y probado localmente.
+4. Comprobar mosaicos/GPS real y los recorridos AWS con cuentas de prueba; las
+   pruebas aisladas no garantizan rutas/tabla/permisos desplegados.
+5. Desplegar juntos los archivos de backend integrados, con autorización y sin
+   reemplazarlos por versiones antiguas. Completar los pendientes funcionales
+   documentados (conversaciones, canje, operaciones privilegiadas fuera de lectura).
+6. Preparar push normal tras verificar de nuevo el remoto. No se ha hecho push
+   durante esta revisión.
 
 Cada paso distingue: conflicto resuelto, compila, tests locales, prueba en teléfono
 y operación AWS real. Un merge sin conflictos no demuestra los otros cuatro.

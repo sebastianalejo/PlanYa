@@ -20,7 +20,8 @@ import com.example.planya.data.location.SelectedLocationStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-data class PlanDetailState(val plan: Plan? = null, val isLoading: Boolean = false, val error: String? = null)
+data class PlanDetailState(val plan: Plan? = null, val isLoading: Boolean = false, val error: String? = null,
+    val unavailableId: String? = null)
 
 class HomeViewModel(private val getPlans: GetPlansUseCase, private val getPlan: GetPlanUseCase,
     private val locationStore: SelectedLocationStore? = null) : ViewModel() {
@@ -70,7 +71,7 @@ class HomeViewModel(private val getPlans: GetPlansUseCase, private val getPlan: 
         _uiState.update { it.copy(plans = it.plans.filterNot { p -> p.id == id }) }
         if (_detail.value.plan?.id == id) {
             detailJob?.cancel()
-            _detail.value = PlanDetailState(error = "El plan finalizó o ya no está disponible.")
+            _detail.value = PlanDetailState(error = "El plan finalizó o ya no está disponible.", unavailableId = id)
         }
     }
 
@@ -85,7 +86,7 @@ class HomeViewModel(private val getPlans: GetPlansUseCase, private val getPlan: 
             catch (_: PlanUnavailableException) {
                 // Un detalle cancelado/vencido en otra cuenta tampoco sigue en Inicio.
                 removePlan(id)
-                _detail.value = PlanDetailState(error = "El plan finalizó o ya no está disponible.")
+                _detail.value = PlanDetailState(error = "El plan finalizó o ya no está disponible.", unavailableId = id)
             }
             catch (failure: Exception) {
                 // API Gateway también devuelve 404 si todavía no se desplegó esta ruta.

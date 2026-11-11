@@ -69,6 +69,7 @@ class PlanLifecycleTest {
         compose.waitUntil { !home.detail.value.isLoading }
         compose.runOnIdle {
             assertNull(home.detail.value.plan)
+            assertEquals(plan.id, home.detail.value.unavailableId)
             assertTrue(home.uiState.value.plans.isEmpty())
             pendingList.complete(PlanPage(listOf(plan), null))
         }
@@ -86,6 +87,7 @@ class PlanLifecycleTest {
         compose.runOnIdle {
             assertEquals(plan, home.detail.value.plan)
             assertNotNull(home.detail.value.error)
+            assertNull(home.detail.value.unavailableId)
             assertEquals(listOf(plan), home.uiState.value.plans)
         }
     }

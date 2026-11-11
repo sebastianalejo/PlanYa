@@ -157,8 +157,9 @@ fun HomeScreen(
     }
 }
 
+// Compartido con el mapa (US-07) para que los filtros se vean iguales.
 @Composable
-private fun CategoryFilter(category: PlanCategory?, selected: Boolean, onClick: () -> Unit) {
+internal fun CategoryFilter(category: PlanCategory?, selected: Boolean, onClick: () -> Unit) {
         Surface(onClick = onClick, shape = RoundedCornerShape(50),
         color = if (selected) Indigo else Color.White,
         border = if (selected) null else BorderStroke(1.dp, OutlineSoft)) {

@@ -45,6 +45,9 @@ import com.example.planya.presentation.screens.chat.ChatScreen
 import com.example.planya.presentation.screens.chat.ChatViewModel
 import com.example.planya.data.repository.ChatRepositoryImpl
 import com.example.planya.presentation.screens.splash.SplashScreen
+import com.example.planya.presentation.screens.map.MapScreen
+import com.example.planya.presentation.screens.map.MapViewModel
+import com.example.planya.data.location.DeviceLocationRepository
 import com.example.planya.presentation.screens.profile.ProfileScreen
 import com.example.planya.presentation.screens.profile.*
 import com.example.planya.data.profile.ProfileRepository
@@ -72,6 +75,16 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val auth by account.state.collectAsStateWithLifecycle()
+    // US-07: el mapa vive a nivel de actividad para conservar zona y filtros al volver del detalle.
+    val mapModel: MapViewModel = viewModel(key = "mapa-planes", factory = remember(context) {
+        MapViewModel.Factory(RepositoryModule.getPlans, DeviceLocationRepository(context.applicationContext))
+    })
+    val mapState by mapModel.state.collectAsStateWithLifecycle()
+    // Una revalidación del detalle también corrige el pin, incluso si lo canceló otra cuenta.
+    LaunchedEffect(detail) {
+        detail.unavailableId?.let(mapModel::removePlan)
+        if (!detail.isLoading && detail.error == null) detail.plan?.let(mapModel::applyPlan)
+    }
     val actions = remember(account) { PlanActionsRepository(NetworkModule.planActions, account.repository) }
     val photos = remember(account) { PlanPhotoRepository(context.applicationContext, NetworkModule.planPhotos, account.repository) }
     fun profileFactory(userId: String) = object : ViewModelProvider.Factory {
@@ -101,6 +114,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
         // No recargar un editor ni reemplazar su borrador cuando vuelve la cámara.
         when (controller.currentDestination?.route) {
             "inicio" -> viewModel.refresh()
+            "mapa" -> mapModel.refresh()
             "plan/{planId}" -> {
                 viewModel.refresh()
                 controller.currentBackStackEntry?.arguments?.getString("planId")?.let(viewModel::openPlan)
@@ -141,7 +155,10 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
         when (tab) {
             BottomTab.HOME -> if (!controller.popBackStack("inicio", false)) controller.navigate("inicio") { launchSingleTop = true }
             BottomTab.PERFIL -> controller.navigate("perfil") { launchSingleTop = true }
-            BottomTab.MAPA -> message("El mapa todavía no está disponible.")
+            BottomTab.MAPA -> controller.navigate("mapa") {
+                popUpTo("inicio") { saveState = false }
+                launchSingleTop = true
+            }
         }
     }
     fun create() { controller.navigate("crear") { launchSingleTop = true } }
@@ -163,9 +180,10 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                 val updated = when (operation) { "join" -> actions.join(plan.id); "leave" -> actions.leave(plan.id); else -> actions.cancel(plan.id) }
                 if (operation == "cancel") {
                     viewModel.removePlan(plan.id)
+                    mapModel.removePlan(plan.id)
                     controller.popBackStack("inicio", false)
                     message("Plan cancelado.")
-                } else { viewModel.applyPlan(updated); message(if (operation == "join") "Ya estás en el plan." else "Saliste del plan.") }
+                } else { viewModel.applyPlan(updated); mapModel.applyPlan(updated); message(if (operation == "join") "Ya estás en el plan." else "Saliste del plan.") }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AuthSessionRequiredException) { account.expiredSession(); access("plan/${Uri.encode(plan.id)}") }
             catch (failure: Exception) {
@@ -211,6 +229,17 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     hasSavedGoogleLocation = state.savedGooglePlaceId != null,
                     userId = auth.session?.userId, interests = account.interests(),
                     requestedScope = requestedFeed, onScopeApplied = { requestedFeed = null })
+            }
+            composable("mapa") {
+                LaunchedEffect(Unit) { mapModel.ensureLoaded() }
+                MapScreen(state = mapState, area = state.area, nowSeconds = now,
+                    onRefresh = mapModel::refresh, onRetry = mapModel::retry, onLoadMore = mapModel::loadMore,
+                    onCategory = mapModel::selectCategory, onSelectPin = mapModel::selectPin,
+                    onCamera = mapModel::saveCamera, onLocate = mapModel::locate,
+                    onPermissionDenied = mapModel::permissionDenied,
+                    onDismissLocationMessage = mapModel::dismissLocationMessage,
+                    onOpenPlan = { controller.navigate("plan/${Uri.encode(it.id)}") { launchSingleTop = true } },
+                    onNavigate = ::navigate, onCreate = ::create)
             }
             composable("perfil") { entry ->
                 val model: ProfileViewModel? = auth.session?.let { viewModel(entry, key = "profile-${it.userId}", factory = profileFactory(it.userId)) }
@@ -305,6 +334,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                 LaunchedEffect(editing.requiresLogin) { if (editing.requiresLogin) { account.expiredSession(); editor.acknowledgeLogin(); access("crear") } }
                 LaunchedEffect(editing.saved?.id) { editing.saved?.let {
                     viewModel.applyPlan(it)
+                    mapModel.applyPlan(it)
                     controller.navigate("plan/${Uri.encode(it.id)}") { popUpTo("crear") { inclusive = true } }
                     message("Tu plan se publicó correctamente.")
                 } }
@@ -320,7 +350,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                 val editing by editor.state.collectAsStateWithLifecycle()
                 LaunchedEffect(editing.requiresLogin) { if (editing.requiresLogin) { account.expiredSession(); editor.acknowledgeLogin(); access("editar/${Uri.encode(id)}") } }
                 LaunchedEffect(editing.saved?.id) { editing.saved?.let {
-                    viewModel.applyPlan(it); controller.popBackStack(); message("Cambios guardados.")
+                    viewModel.applyPlan(it); mapModel.applyPlan(it); controller.popBackStack(); message("Cambios guardados.")
                 } }
                 PlanEditorScreen(editing, true, state.area, editor::change, editor::save, editor::load,
                     onBack = { controller.popBackStack() }, onPhotoSelected = editor::selectPhoto,

@@ -2,6 +2,11 @@
 
 11 de noviembre de 2026. No desplegar ni aprovisionar cuentas/ofertas todavía.
 
+Actualización posterior: los cursores antiguos de planes/beneficios ya están
+corregidos y conectados con Android localmente en el [Paso 5](PASO-5-LISTAS-PRIVADAS-Y-CONEXION.md).
+Las menciones a esa corrección como pendiente más abajo son el estado histórico
+del paso 4. La comprobación y el despliegue AWS siguen pendientes.
+
 ## Entrada y experiencia
 
 Perfil → Personal autorizado → Acceso de operadores. La entrada no concede un

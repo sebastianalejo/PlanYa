@@ -370,11 +370,54 @@ def confidence_request(table, event):
     return http_response(200, {"success": True, "data": {"userId": user, "count": count, "average": average}})
 
 
+class PageCursorError(ValueError):
+    def __init__(self, expired=False):
+        self.status = 409 if expired else 400
+        self.code = "CURSOR_EXPIRED" if expired else "CURSOR_INVALID"
+        super().__init__("La continuacion vencio o no es valida. Actualiza la lista")
+
+
+def page_cursor_table():
+    return dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes"))
+
+
+def read_page_cursor(cursor, scope, now):
+    if cursor is None:
+        return None
+    try:
+        if not isinstance(cursor, str) or str(uuid.UUID(cursor)) != cursor:
+            raise ValueError()
+    except (ValueError, TypeError, AttributeError):
+        raise PageCursorError() from None
+    saved = page_cursor_table().get_item(Key={"planId": "page#" + cursor, "sk": "cursor"}, ConsistentRead=True).get("Item", {})
+    if saved.get("entityType") != "PAGE_CURSOR" or saved.get("scope") != scope:
+        raise PageCursorError()
+    if int(saved.get("expiresAt", 0)) <= now:
+        raise PageCursorError(expired=True)
+    key = saved.get("key")
+    if not isinstance(key, str) or not 1 <= len(key) <= 2048:
+        raise PageCursorError()
+    return key
+
+
+def save_page_cursor(key, scope, now):
+    if key is None:
+        return None
+    cursor = str(uuid.uuid4())
+    page_cursor_table().put_item(Item={"planId": "page#" + cursor, "sk": "cursor",
+        "entityType": "PAGE_CURSOR", "scope": scope, "key": key, "expiresAt": now + 900})
+    return cursor
+
+
+def page_cursor_response(error):
+    return http_response(error.status, {"success": False, "code": error.code, "error": str(error)})
+
+
 def list_plans(table, next_key=None):
     # Una página por petición; nextKey permite solicitar la siguiente.
     options = {"Limit": 25, "ConsistentRead": True}
     if next_key:
-        if not isinstance(next_key, str) or len(next_key) > 128:
+        if not isinstance(next_key, str) or len(next_key) > 2048:
             raise ValueError("nextKey no valido")
         options["ExclusiveStartKey"] = {"id": next_key}
     result = table.scan(**options)
@@ -653,11 +696,17 @@ def list_benefits(table, event):
     if not claims.get("sub") or claims.get("token_use") != "id":
         return http_response(401, {"success": False, "error": "Inicia sesion para ver tus beneficios"})
     query = event.get("queryStringParameters") or {}
-    status_filter = query.get("estado", "DISPONIBLE").upper()
+    status_filter = query.get("estado", "DISPONIBLE")
+    status_filter = status_filter.upper() if isinstance(status_filter, str) else None
     if status_filter not in {"DISPONIBLE", "USADO", "VENCIDO"}:
         return http_response(400, {"success": False, "error": "Estado no valido"})
     next_key_raw = query.get("nextKey")
     now = int(datetime.now(timezone.utc).timestamp())
+    scope = json.dumps(["benefits", claims["sub"], status_filter])
+    try:
+        next_key_raw = read_page_cursor(next_key_raw, scope, now)
+    except PageCursorError as error:
+        return page_cursor_response(error)
     states = {
         "DISPONIBLE": "#st = :status AND (attribute_not_exists(validUntil) OR validUntil > :now)",
         "USADO": "#st = :status",
@@ -673,14 +722,15 @@ def list_benefits(table, event):
         "ExpressionAttributeNames": {"#st": "status"},
         "ExpressionAttributeValues": values,
         "Limit": 20,
+        "ConsistentRead": True,
     }
     if next_key_raw:
-        if not isinstance(next_key_raw, str) or len(next_key_raw) > 128:
-            return http_response(400, {"success": False, "error": "nextKey no valido"})
         options["ExclusiveStartKey"] = {"id": next_key_raw}
     result = table.scan(**options)
-    items = [public_benefit(i) for i in result.get("Items", [])]
-    last = result.get("LastEvaluatedKey", {}).get("id")
+    items = [public_benefit(i) for i in result.get("Items", [])
+             if i.get("entityType") == "BENEFIT" and i.get("userId") == claims["sub"]
+             and effective_benefit_status(i, now) == status_filter]
+    last = save_page_cursor(result.get("LastEvaluatedKey", {}).get("id"), scope, now)
     return http_response(200, {"success": True, "data": {"items": items, "nextKey": last}})
 
 
@@ -778,7 +828,13 @@ def lambda_handler(event, context):
             return http_response(404, {"success": False, "error": "Ruta no disponible"})
         query = event.get("queryStringParameters") or {}
         try:
-            return http_response(200, list_plans(table, query.get("nextKey")))
+            now = int(datetime.now(timezone.utc).timestamp())
+            key = read_page_cursor(query.get("nextKey"), "public-plans", now)
+            result = list_plans(table, key)
+            result["data"]["nextKey"] = save_page_cursor(result["data"]["nextKey"], "public-plans", now)
+            return http_response(200, result)
+        except PageCursorError as error:
+            return page_cursor_response(error)
         except ValueError as error:
             return http_response(400, {"success": False, "error": str(error)})
 

@@ -143,3 +143,14 @@ locales autorizados y participantes de sus encuentros. Los cursores privados de
 este panel reutilizan PlanYaMensajes (TTL 15 minutos). El paquete final pasa a
 cuatro módulos: Lambda, Chat, canje/asistencia y panel. Todavía no desplegado.
 Contrato y pendientes: `../docs/equipo/PASO-4-PANEL-OPERADOR.md`.
+
+## Continuaciones HTTP privadas
+
+GET `/planes` y GET `/beneficios` devuelven ahora `nextKey` opaco con vigencia de
+15 minutos en PlanYaMensajes. Los beneficios vinculan la continuación a cuenta y
+filtro. Android conserva tarjetas/pines/cupones y permite actualizar ante
+`CURSOR_EXPIRED`/`CURSOR_INVALID`; no interpreta una clave interna de DynamoDB.
+No activar TTL sobre los planes. El paquete local con cuatro módulos y el orden
+de conexión se documentan en `../docs/equipo/PASO-5-LISTAS-PRIVADAS-Y-CONEXION.md`.
+La política de cursores exige comprobar tabla/permisos de mensajes antes de
+desplegar, también para la paginación del listado público.

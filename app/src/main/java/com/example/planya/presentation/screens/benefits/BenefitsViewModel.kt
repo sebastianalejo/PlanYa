@@ -1,5 +1,7 @@
 package com.example.planya.presentation.screens.benefits
 
+import com.example.planya.domain.repository.PageCursorException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.planya.data.auth.AuthSessionRequiredException
@@ -64,6 +66,9 @@ class BenefitsViewModel(private val getBenefits: GetBenefitsUseCase, private val
                 }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AuthSessionRequiredException) { _state.update { it.copy(isLoadingMore = false, requiresLogin = true) } }
+            catch (expired: PageCursorException) {
+                _state.update { it.copy(isLoadingMore = false, nextKey = null, errorMessage = expired.message) }
+            }
             catch (failure: Exception) {
                 _state.update { it.copy(isLoadingMore = false, errorMessage = failure.message ?: "No pudimos cargar más beneficios.") }
             }

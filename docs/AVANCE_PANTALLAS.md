@@ -12,6 +12,11 @@ No se ha hecho push ni desplegado el backend integrado. Evidencia actual en
 Beneficios incorpora también el [Panel del operador](equipo/PASO-4-PANEL-OPERADOR.md),
 con asistencia/emisión/canje locales autorizados, sin datos de demostración en
 el flujo normal de la app ni altas de operadores/ofertas en AWS.
+El [Paso 5](equipo/PASO-5-LISTAS-PRIVADAS-Y-CONEXION.md) conecta las continuaciones
+privadas con Inicio, Mapa y Beneficios: 152 Python, 98 JVM y 73 regresiones
+Android seleccionadas correctas. No cambia la aceptación cloud: el listado real
+volvió a responder 200 tras encender el laboratorio; las rutas nuevas consultadas
+siguen en 404 y falta confirmar tabla/permisos antes del despliegue.
 Los bloques anteriores al inventario conservan el cierre histórico de las seis
 pantallas de Steve; no son el recuento actual de pruebas del conjunto integrado.
 
@@ -78,7 +83,7 @@ Los avisos de próxima disponibilidad no cuentan como funciones terminadas.
 | Steve | 6. Crear plan | Crear/editar, cámara/galería hasta 4 fotos, portada, retirar, revisar y publicar. | Usuario dio conformidad a fotos y limpieza S3. Usa selector nativo/mapa; contrato Places por placeId para publicación no incluido. | 100% del alcance actual |
 | Steve | 7. Detalle | Galería, edición, participación/salida, cancelar, cupos, Cómo llegar y Compartir. | Usuario confirmó los flujos y vencimiento; regresiones automatizadas aprobadas. | 100% del alcance actual |
 | Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Implementado y probado localmente; falta desplegar lista/mensajes/tabla y probar dos cuentas reales. Actualización manual, no tiempo real. | 90% |
-| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión desde oferta y canje transaccional; revisión explícita y reintento con requestId persistente. | 142 pruebas Python y 12 pruebas Android del panel aprobadas localmente. Faltan cursores privados de rutas antiguas, despliegue, operador/oferta configurados y casos con cuentas reales. Escaneo de cámara pendiente; entrada manual de código implementada. | 80% |
+| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión/canje transaccional; revisión explícita, requestId persistente y cursores privados conectados con Android. | 152 Python, 98 JVM y 73 Android seleccionadas del conjunto correctas. Faltan despliegue, operador/oferta configurados y casos con cuentas reales. Escaneo de cámara pendiente; entrada manual implementada. | 80% |
 | Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza de lectura y estado autorizado de verificación. Accesos a conversaciones, beneficios y operadores. Asistencia acreditada por el piloto de servidor. | Faltan rutas AWS y comprobaciones reales; creación de valoraciones y aprobación de verificación siguen pendientes de política/roles. | 85% (lectura local; pendientes de política/AWS) |
 
 Promedio orientativo de las diez pantallas: **94,5% (aprox. 95%)** (seis de Steve: **100% del

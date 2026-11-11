@@ -1,5 +1,7 @@
 package com.example.planya.presentation.screens.home
 
+import com.example.planya.domain.repository.PageCursorException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -132,14 +134,16 @@ class HomeViewModel(private val getPlans: GetPlansUseCase, private val getPlan: 
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                lastFailedAppend = append
+                lastFailedAppend = append && error !is PageCursorException
                 val message = when (error) {
+                    is PageCursorException -> error.message!!
                     is IOException -> "No se pudo conectar. Revisa tu conexión a Internet."
                     is HttpException -> "El servidor respondió con error ${error.code()}."
                     else -> "No se pudieron leer los planes. Inténtalo de nuevo."
                 }
                 _uiState.update {
-                    it.copy(isLoading = false, isLoadingMore = false, errorMessage = message)
+                    it.copy(isLoading = false, isLoadingMore = false, errorMessage = message,
+                        nextKey = if (error is PageCursorException) null else it.nextKey)
                 }
             }
         }

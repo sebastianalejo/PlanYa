@@ -13,8 +13,9 @@ de presencia y máximo una asistencia/cupón por persona y plan. La entrada de
 código de canje es manual; no hay escáner de cámara todavía. Estado, contrato y
 pendientes: [Paso 4: Panel del operador](PASO-4-PANEL-OPERADOR.md).
 
-Sigue pendiente corregir cursores antiguos de planes/beneficios antes de cerrar
-privacidad, probar el despliegue y recorrer los casos con cuentas reales. No
+Los cursores antiguos ya se corrigieron localmente en el
+[Paso 5](PASO-5-LISTAS-PRIVADAS-Y-CONEXION.md). Sigue pendiente comprobarlos en
+AWS, probar el despliegue y recorrer los casos con cuentas reales. No
 considerar cerrada la US solo por compilar o mostrar un QR.
 
 Responsable: Compañero 3. Rama propuesta: `feature/beneficios`. Prioridad: media.

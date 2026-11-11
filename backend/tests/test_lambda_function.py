@@ -41,11 +41,12 @@ class LambdaTests(unittest.TestCase):
         }
         event = {"requestContext": {}, "routeKey": "GET /planes",
                  "queryStringParameters": {"nextKey": "p0"}}
-        response = self.api.lambda_handler(event, None)
+        with patch.object(self.api, "read_page_cursor", return_value="p0"), patch.object(self.api, "save_page_cursor", return_value="opaque"):
+            response = self.api.lambda_handler(event, None)
         body = json.loads(response["body"])
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(body["data"]["items"][0]["latitude"], -12.123)
-        self.assertEqual(body["data"]["nextKey"], "p1")
+        self.assertEqual(body["data"]["nextKey"], "opaque")
         self.table.scan.assert_called_once_with(Limit=25, ConsistentRead=True, ExclusiveStartKey={"id": "p0"})
 
     def test_http_does_not_execute_console_create(self):

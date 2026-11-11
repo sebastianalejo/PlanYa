@@ -10,6 +10,7 @@ import com.example.planya.domain.model.BenefitCode
 import com.example.planya.domain.model.BenefitPage
 import com.example.planya.domain.model.BenefitStatus
 import com.example.planya.domain.repository.BenefitsRepository
+import com.example.planya.domain.repository.PageCursorException
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
@@ -26,9 +27,10 @@ fun benefitMessage(status: Int, serverMessage: String?): String = serverMessage 
 }
 
 /** Las lecturas siempre usan el token de la sesión esperada; el servidor decide qué cupones pertenecen al usuario. */
-class BenefitsRepositoryImpl(private val api: BenefitsApi, private val auth: AuthRepository,
-    private val userId: String) : BenefitsRepository {
-    override suspend fun getBenefits(status: BenefitStatus, nextKey: String?): BenefitPage = request { token ->
+class BenefitsRepositoryImpl(private val api: BenefitsApi, private val userId: String,
+    private val token: suspend () -> String) : BenefitsRepository {
+    constructor(api: BenefitsApi, auth: AuthRepository, userId: String) : this(api, userId, { auth.token(userId) })
+    override suspend fun getBenefits(status: BenefitStatus, nextKey: String?): BenefitPage = request(nextKey) { token ->
         val data = api.list(token, status.name, nextKey).payload()
         BenefitPage(data.items.orEmpty().map { it.toDomain(userId) }, data.nextKey?.takeIf { it.isNotBlank() })
     }
@@ -40,12 +42,15 @@ class BenefitsRepositoryImpl(private val api: BenefitsApi, private val auth: Aut
         return checkNotNull(data) { "El servidor no devolvió la información del beneficio." }
     }
 
-    private suspend fun <T> request(block: suspend (String) -> T): T {
+    private suspend fun <T> request(nextKey: String? = null, block: suspend (String) -> T): T {
         try {
-            return block("Bearer ${auth.token(userId)}")
+            return block("Bearer ${token()}")
         } catch (failure: HttpException) {
             if (failure.code() == 401) throw AuthSessionRequiredException()
-            val message = runCatching { Gson().fromJson(failure.response()?.errorBody()?.string(), JsonObject::class.java).get("error")?.asString }.getOrNull()
+            val body = runCatching { Gson().fromJson(failure.response()?.errorBody()?.string(), JsonObject::class.java) }.getOrNull()
+            if (nextKey != null && failure.code() in setOf(400, 409) &&
+                body?.get("code")?.asString in setOf("CURSOR_INVALID", "CURSOR_EXPIRED")) throw PageCursorException()
+            val message = body?.get("error")?.asString
             throw IllegalStateException(benefitMessage(failure.code(), message))
         } catch (_: IOException) {
             throw IllegalStateException("No pudimos confirmar la operación por un problema de conexión. Actualiza el beneficio antes de volver a intentarlo.")

@@ -1,5 +1,7 @@
 package com.example.planya.presentation.screens.map
 
+import com.example.planya.domain.repository.PageCursorException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -57,13 +59,15 @@ class MapViewModel(private val getPlans: GetPlansUseCase,
                 recentMutations.entries.removeAll { it.value.first <= requestedVersion }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
-                lastFailedAppend = append
+                lastFailedAppend = append && error !is PageCursorException
                 val message = when (error) {
+                    is PageCursorException -> error.message!!
                     is IOException -> "No se pudo conectar. Revisa tu conexión a Internet."
                     is HttpException -> "El servidor respondió con error ${error.code()}."
                     else -> "No se pudieron cargar los planes."
                 }
-                _state.update { it.copy(isLoading = false, isLoadingMore = false, errorMessage = message) }
+                _state.update { it.copy(isLoading = false, isLoadingMore = false, errorMessage = message,
+                    nextKey = if (error is PageCursorException) null else it.nextKey) }
             }
         }
     }

@@ -32,7 +32,8 @@ data class ChatPage(
     val chatExpiresAt: Long,
     val serverTimeSeconds: Long,
     val planTitle: String?,
-    val isHost: Boolean
+    val isHost: Boolean,
+    val hostId: String? = null
 )
 
 enum class ChatBlockReason { NOT_MEMBER, PLAN_CANCELLED, CHAT_CLOSED, NO_SCHEDULE, PLAN_NOT_FOUND }

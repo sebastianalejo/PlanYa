@@ -26,5 +26,6 @@ fun ChatPageDto.toDomain(): ChatPage = ChatPage(
     chatExpiresAt = checkNotNull(chatExpiresAt) { "El servidor no indicó el cierre del chat." },
     serverTimeSeconds = checkNotNull(serverTime) { "El servidor no indicó su hora." },
     planTitle = planTitle,
-    isHost = isHost == true
+    isHost = isHost == true,
+    hostId = hostId
 )

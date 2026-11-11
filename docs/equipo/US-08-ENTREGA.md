@@ -97,9 +97,9 @@ Reglas del servidor, comprobadas en **cada** lectura y envío:
 
 ## Pendiente o por acordar
 
-- **Mis conversaciones desde Perfil**: no está. Después de que un plan vence, el GET público
-  devuelve 404 y el Detalle ya no se abre. El chat sigue disponible por API, pero la app no
-  tiene otra entrada. Requiere `GET /conversaciones` y una fila en Perfil (US-10 / integrador).
+- **Mis conversaciones desde Perfil**: implementado localmente por el integrador.
+  Incluye `GET /conversaciones`, lista paginada y entrada directa al chat tras vencer
+  el plan. Falta despliegue y validación real: [Paso 1](PASO-1-CONVERSACIONES.md).
 - **Actualización periódica**: no se activó porque no está acordada. Hoy es manual.
 - El campo se vacía al pulsar Enviar y el texto queda en la burbuja «Enviando…». Si falla, no
   se pierde: queda en la burbuja con Reintentar.

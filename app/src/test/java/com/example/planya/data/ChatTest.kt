@@ -75,6 +75,8 @@ class ChatTest {
     }
 
     private open class FakeApi : ChatApi {
+        override suspend fun conversations(token: String, nextKey: String?) =
+            com.example.planya.data.remote.dto.ConversationsResponseDto()
         var lastToken: String? = null
         override suspend fun messages(token: String, planId: String, nextKey: String?, after: String?): ChatPageResponseDto {
             lastToken = token

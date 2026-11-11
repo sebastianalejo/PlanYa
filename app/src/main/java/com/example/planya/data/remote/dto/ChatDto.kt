@@ -21,7 +21,8 @@ data class ChatPageDto(
     val serverTime: Long? = null,
     val planTitle: String? = null,
     val isHost: Boolean? = null,
-    val realtime: Boolean? = null
+    val realtime: Boolean? = null,
+    val hostId: String? = null
 )
 
 data class ChatPageResponseDto(val success: Boolean? = null, val data: ChatPageDto? = null, val error: String? = null)

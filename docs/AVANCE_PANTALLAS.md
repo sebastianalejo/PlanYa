@@ -1,7 +1,16 @@
 # PlanYa — pantallas, botones y flujos
 
-Revisión: 5 de noviembre de 2026. Las pantallas de Stitch son la referencia visual.
+Revisión: 11 de noviembre de 2026. Las pantallas de Stitch son la referencia visual.
 Se mantienen la Home, la paleta y las fuentes acordadas.
+
+Actualización de integración: las cuatro entregas del equipo ya están unidas en
+`steve` local, con correcciones y pruebas. Mis conversaciones añade la entrada
+desde Perfil al chat de planes vencidos todavía dentro de su ventana permitida.
+No se ha hecho push ni desplegado el backend integrado. Evidencia actual en
+[revisión de merges](equipo/REVISION_MERGES_2026-11-10.md) y
+[Paso 1: Mis conversaciones](equipo/PASO-1-CONVERSACIONES.md).
+Los bloques anteriores al inventario conservan el cierre histórico de las seis
+pantallas de Steve; no son el recuento actual de pruebas del conjunto integrado.
 
 CIERRE: el usuario confirmó vencimiento del plan y las tres últimas validaciones:
 renovación de sesión, intereses entre dispositivos y limpieza S3. Sus seis pantallas
@@ -62,14 +71,14 @@ Los avisos de próxima disponibilidad no cuentan como funciones terminadas.
 | Steve | 2. Acceso / Registro | Google y correo, registro, código, recuperación, reenvío y manejo de errores. | Flujo real y renovación confirmados por usuario. Apple no forma parte de esta entrega. | 100% del alcance actual |
 | Steve | 3. Intereses | Selección, persistencia por cuenta, sincronización y reintento sin conexión. | Usuario confirmó reintento y misma cuenta entre dispositivos. | 100% del alcance actual |
 | Steve | 4. Inicio | Listado, búsqueda/filtros sobre páginas cargadas, ubicación, orden y recarga al regresar. | Usuario confirmó caducidad del plan. La búsqueda global del servidor no está implementada. | 100% del alcance actual |
-| Equipo | 5. Mapa | Solo acceso en la barra, con aviso de no disponibilidad. | Mapa, pines reales, selección, ficha y abrir detalle; no cuenta como pantalla implementada. | 0% |
+| Alfonso + integración | 5. Mapa | Pines de la API, filtros, agrupación, ficha, detalle, cámara conservada, paginación, GPS explícito y errores. | Compila y pasa pruebas aisladas; faltan mosaicos/GPS reales y recorrido final. | 90% |
 | Steve | 6. Crear plan | Crear/editar, cámara/galería hasta 4 fotos, portada, retirar, revisar y publicar. | Usuario dio conformidad a fotos y limpieza S3. Usa selector nativo/mapa; contrato Places por placeId para publicación no incluido. | 100% del alcance actual |
 | Steve | 7. Detalle | Galería, edición, participación/salida, cancelar, cupos, Cómo llegar y Compartir. | Usuario confirmó los flujos y vencimiento; regresiones automatizadas aprobadas. | 100% del alcance actual |
-| Equipo | 8. Chat temporal | Sin pantalla implementada. | Acceso de participantes, mensajes y expiración efectiva. | 0% |
-| Equipo | 9. Beneficios | Sin pantalla implementada. | Cupones, condiciones, QR, canje y vencimiento. | 0% |
-| Base aquí / completar equipo | 10. Perfil | Pantalla propia y editor: nombre/avatar privados, guardado, borrador y conflictos. Opciones de planes, ubicación, intereses con sincronización/reintento, sesión. Actividad y confianza de solo lectura desde servidor; estado de verificación autorizado. | Nombre/foto y reintento de intereses confirmados. Faltan quitar avatar real, valoraciones reales/asistencia acreditada, aprobación de verificación y accesos Chat/Beneficios. | 85% (lectura local; pendientes de política/AWS) |
+| Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Implementado y probado localmente; falta desplegar lista/mensajes/tabla y probar dos cuentas reales. Actualización manual, no tiempo real. | 90% |
+| José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código temporal, permisos por cuenta y vencimiento corregidos. | Faltan acreditación de asistencia, emisión/canje por operador, doble canje y pruebas reales. Mostrar QR no significa canjear. | 60% |
+| Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza de lectura y estado autorizado de verificación. Accesos a Mis conversaciones y Beneficios. | Faltan nuevas rutas AWS y comprobaciones reales; creación de valoraciones, acreditación y aprobación dependen de política/roles aún no implementados. | 85% (lectura local; pendientes de política/AWS) |
 
-Promedio orientativo de las diez pantallas: **69%** (seis de Steve: **100% del
+Promedio orientativo de las diez pantallas: **92,5% (aprox. 93%)** (seis de Steve: **100% del
 alcance actual aceptado**). No equivale a certificar producción, todos los casos
 posibles o el producto original completo. Otros módulos conservan su estado real.
 Las seis tienen interfaz y lógica; Google está confirmado por el usuario y
@@ -86,7 +95,7 @@ cuando no hay opiniones, promedio/cantidad cuando existen y check azul solo con
 `VERIFIED`. Quitar avatar conserva nombre e intereses; Google no otorga verificación.
 No se implementó la creación de valoraciones ni la acreditación de asistencia: quedan
 pendientes de la política conjunta con Beneficios/integrador. Chat y Beneficios
-permanecen ocultos hasta que existan sus rutas reales. Las rutas nuevas requieren
+permanecían ocultos en esa entrega; ahora están integrados localmente. Las rutas nuevas requieren
 Deploy manual en AWS y todavía no se verificaron contra la cuenta real.
 
 Histórico previo: 34 pruebas unitarias y 37 de instrumentación aprobadas.

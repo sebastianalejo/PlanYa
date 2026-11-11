@@ -98,7 +98,7 @@ fun ChatScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver al detalle del plan") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver") }
                 },
                 actions = {
                     if (state.blocked == null && state.loaded) {
@@ -135,7 +135,7 @@ fun ChatScreen(
                                 "Escribe el primero para coordinar el encuentro: punto exacto, hora de llegada o dudas.",
                                 null, {}, Modifier.weight(1f))
                         } else {
-                            MessageList(state, userId, hostId, onRetry, onDiscard, onLoadOlder, Modifier.weight(1f))
+                            MessageList(state, userId, state.hostId ?: hostId, onRetry, onDiscard, onLoadOlder, Modifier.weight(1f))
                         }
                     }
                 }

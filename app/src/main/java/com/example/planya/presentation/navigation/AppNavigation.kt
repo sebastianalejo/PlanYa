@@ -43,6 +43,9 @@ import com.example.planya.presentation.screens.interests.InterestsScreen
 import com.example.planya.presentation.screens.plandetail.PlanDetailScreen
 import com.example.planya.presentation.screens.chat.ChatScreen
 import com.example.planya.presentation.screens.chat.ChatViewModel
+import com.example.planya.presentation.screens.chat.ConversationsScreen
+import com.example.planya.presentation.screens.chat.ConversationsViewModel
+import com.example.planya.data.repository.ConversationsRepositoryImpl
 import com.example.planya.data.repository.ChatRepositoryImpl
 import com.example.planya.presentation.screens.splash.SplashScreen
 import com.example.planya.presentation.screens.map.MapScreen
@@ -267,7 +270,29 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     activityError = profileState?.activityError, onRetryActivity = { model?.retryActivity() },
                     confidence = profileState?.confidence, confidenceLoading = profileState?.confidenceLoading == true,
                     confidenceError = profileState?.confidenceError, onRetryConfidence = { model?.retryConfidence() },
+                    onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
                     onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } })
+            }
+            composable("conversaciones") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("conversaciones") }
+                } else {
+                    val conversations: ConversationsViewModel = viewModel(entry,
+                        key = "conversations-${session.userId}-${auth.loginEvent}",
+                        factory = ConversationsViewModel.Factory(ConversationsRepositoryImpl(NetworkModule.chatApi,
+                            session.userId) { account.repository.token(session.userId) }))
+                    val conversationsState by conversations.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { conversations.refresh() }
+                    LaunchedEffect(conversationsState.requiresLogin) { if (conversationsState.requiresLogin) {
+                        conversations.acknowledgeLogin(); account.expiredSession(); access("conversaciones")
+                    } }
+                    ConversationsScreen(conversationsState, now,
+                        onOpen = { controller.navigate("chat/${Uri.encode(it.planId)}") { launchSingleTop = true } },
+                        onRefresh = conversations::refresh, onRetry = conversations::retry,
+                        onLoadMore = conversations::loadMore,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) })
+                }
             }
             composable("beneficios") { entry ->
                 val session = auth.session
@@ -396,7 +421,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                 } else if (session == null) {
                     LaunchedEffect(Unit) { access("chat/${Uri.encode(id)}") }
                 } else {
-                    val chat: ChatViewModel = viewModel(entry, key = "chat-$id-${session.userId}",
+                    val chat: ChatViewModel = viewModel(entry, key = "chat-$id-${session.userId}-${auth.loginEvent}",
                         factory = ChatViewModel.Factory(id, session.userId,
                             ChatRepositoryImpl(NetworkModule.chatApi, session.userId) { account.repository.token(session.userId) }))
                     val chatState by chat.state.collectAsStateWithLifecycle()

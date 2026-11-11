@@ -35,6 +35,7 @@ data class ChatUiState(
     /** Diferencia entre la hora del servidor y la del teléfono, en segundos. */
     val clockOffsetSeconds: Long = 0,
     val isHost: Boolean = false,
+    val hostId: String? = null,
     val blocked: ChatBlockReason? = null,
     val blockedMessage: String? = null,
     val requiresLogin: Boolean = false,

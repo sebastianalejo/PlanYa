@@ -744,7 +744,7 @@ def lambda_handler(event, context):
             return activity_request(table, event)
         if event.get("routeKey") == "GET /perfil/confianza":
             return confidence_request(table, event)
-        if event.get("routeKey") in {"GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}:
+        if event.get("routeKey") in {"GET /conversaciones", "GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}:
             import chat  # US-08: chat temporal en su propio módulo (backend/chat.py)
             return chat.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")))
         if event.get("routeKey") in {"GET /perfil", "PUT /perfil", "POST /perfil/foto"}:

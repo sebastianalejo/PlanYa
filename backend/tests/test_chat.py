@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import types
+import time
 import unittest
 import uuid
 from decimal import Decimal
@@ -42,6 +43,28 @@ class FakePlans:
     def get_item(self, Key, ConsistentRead=False):
         item = self.items.get(Key["id"])
         return {"Item": copy.deepcopy(item)} if item else {}
+
+    def scan(self, Limit, ConsistentRead, FilterExpression, ExpressionAttributeNames,
+             ExpressionAttributeValues, ProjectionExpression, ExclusiveStartKey=None):
+        assert ConsistentRead is True
+        assert ProjectionExpression == "id"
+        assert "contains(#members, :user)" in FilterExpression
+        assert "#expires > :cutoff" in FilterExpression
+        assert ExpressionAttributeNames["#type"] == "entityType"
+        values = list(self.items.values())
+        if ExclusiveStartKey:
+            start = next(i for i, item in enumerate(values) if item["id"] == ExclusiveStartKey["id"])
+            values = values[start + 1:]
+        page = values[:Limit]
+        user = ExpressionAttributeValues[":user"]
+        cutoff = ExpressionAttributeValues[":cutoff"]
+        matches = [item for item in page if item.get("entityType") in (None, "PLAN")
+                   and (item.get("ownerId") == user or user in (item.get("attendeeIds") or []))
+                   and item.get("status") != "CANCELLED" and item.get("expiresAt", 0) > cutoff]
+        result = {"Items": [{"id": item["id"]} for item in matches]}
+        if len(values) > Limit:
+            result["LastEvaluatedKey"] = {"id": page[-1]["id"]}
+        return result
 
 
 class FakeMessages:
@@ -391,6 +414,96 @@ class ChatDispatchTests(unittest.TestCase):
                                             "pathParameters": {"id": PLAN}}, None)
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(self.messages.items, {})
+
+    def test_conversations_reopens_finished_plan_without_public_detail(self):
+        self.plans.items[PLAN]["expiresAt"] = Decimal(int(time.time()) - 60)
+        public = self.api.lambda_handler({"requestContext": {}, "routeKey": "GET /planes/{id}",
+                                         "pathParameters": {"id": PLAN}}, None)
+        self.assertEqual(public["statusCode"], 404)
+        listing = self.api.lambda_handler(request("GET /conversaciones"), None)
+        self.assertEqual(listing["statusCode"], 200)
+        self.assertEqual(json.loads(listing["body"])["data"]["items"][0]["planId"], PLAN)
+        chat = self.api.lambda_handler(request("GET /planes/{id}/mensajes"), None)
+        self.assertEqual(chat["statusCode"], 200)
+        self.assertEqual(json.loads(chat["body"])["data"]["hostId"], HOST)
+
+
+class ConversationsTests(unittest.TestCase):
+    def setUp(self):
+        self.chat = load("planya_conversations", "chat.py")
+        self.plans = FakePlans(plan())
+        self.messages = FakeMessages()
+
+    def call(self, sub=GUEST, query=None, now=NOW, token_use="id"):
+        response = self.chat.handle(request("GET /conversaciones", sub=sub, query=query, token_use=token_use),
+                                    self.plans, self.messages, now_ms=now * 1000)
+        return response["statusCode"], json.loads(response["body"])
+
+    def test_requires_verified_id_token(self):
+        self.assertEqual(self.call(sub=None)[0], 401)
+        self.assertEqual(self.call(token_use="access")[0], 401)
+        self.assertEqual(self.messages.items, {})
+
+    def test_only_own_open_plans_and_minimal_fields_are_returned(self):
+        self.plans = FakePlans(plan(description="privado", meetingPlace="direccion", imageKey="foto"),
+                               plan(id=str(uuid.uuid4()), ownerId=STRANGER, attendeeIds=[STRANGER]),
+                               plan(id=str(uuid.uuid4()), status="CANCELLED"),
+                               plan(id=str(uuid.uuid4()), expiresAt=NOW - 7200),
+                               plan(id=str(uuid.uuid4()), entityType="BENEFIT_CODE"),
+                               plan(id=str(uuid.uuid4()), expiresAt=0))
+        status, body = self.call(query={"userId": STRANGER})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["data"]["userId"], GUEST)
+        self.assertEqual([i["planId"] for i in body["data"]["items"]], [PLAN])
+        item = body["data"]["items"][0]
+        self.assertEqual(set(item), {"planId", "title", "hostId", "hostName", "category", "planExpiresAt", "chatExpiresAt", "isHost"})
+        self.assertFalse(item["isHost"])
+
+    def test_host_access_does_not_require_host_in_attendee_array(self):
+        self.plans.items[PLAN]["attendeeIds"] = []
+        status, body = self.call(sub=HOST)
+        self.assertEqual(status, 200)
+        self.assertTrue(body["data"]["items"][0]["isHost"])
+
+    def test_finished_plan_remains_until_exact_chat_close(self):
+        self.plans.items[PLAN]["expiresAt"] = NOW - 3600
+        self.assertEqual(len(self.call()[1]["data"]["items"]), 1)
+        self.assertEqual(self.call(now=NOW + 3600)[1]["data"]["items"], [])
+
+    def test_membership_is_rechecked_after_scan(self):
+        self.plans.scan = Mock(return_value={"Items": [{"id": PLAN}]})
+        self.plans.items[PLAN]["attendeeIds"] = []
+        self.assertEqual(self.call()[1]["data"]["items"], [])
+
+    def test_cursor_hides_private_key_and_allows_empty_page_to_continue(self):
+        self.plans.scan = Mock(side_effect=[{"Items": [], "LastEvaluatedKey": {"id": "codigo#SECRETO_AJENO"}},
+                                           {"Items": [{"id": PLAN}]}])
+        status, body = self.call()
+        self.assertEqual(status, 200)
+        self.assertEqual(body["data"]["items"], [])
+        cursor = body["data"]["nextKey"]
+        self.assertEqual(str(uuid.UUID(cursor)), cursor)
+        self.assertNotIn("SECRETO_AJENO", json.dumps(body))
+        status, second = self.call(query={"nextKey": cursor})
+        self.assertEqual(status, 200)
+        self.assertEqual(second["data"]["items"][0]["planId"], PLAN)
+        self.assertEqual(self.plans.scan.call_args.kwargs["ExclusiveStartKey"], {"id": "codigo#SECRETO_AJENO"})
+        stored = self.messages.items[("conversations#" + cursor, "cursor")]
+        self.assertEqual(stored["expiresAt"], NOW + 900)
+
+    def test_cursor_cannot_be_reused_by_another_account(self):
+        self.plans.scan = Mock(return_value={"Items": [], "LastEvaluatedKey": {"id": "privado"}})
+        cursor = self.call()[1]["data"]["nextKey"]
+        self.assertEqual(self.call(sub=OTHER, query={"nextKey": cursor})[0], 400)
+        self.assertEqual(self.call(query={"nextKey": "codigo#privado"})[0], 400)
+        self.assertEqual(self.call(query={"nextKey": str(uuid.uuid4())})[0], 400)
+
+    def test_expired_cursor_requires_refresh_even_before_ttl_cleanup(self):
+        self.plans.scan = Mock(return_value={"Items": [], "LastEvaluatedKey": {"id": "privado"}})
+        cursor = self.call()[1]["data"]["nextKey"]
+        status, body = self.call(query={"nextKey": cursor}, now=NOW + 900)
+        self.assertEqual(status, 409)
+        self.assertEqual(body["code"], "CURSOR_EXPIRED")
 
 
 if __name__ == "__main__":

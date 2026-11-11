@@ -198,6 +198,24 @@ No se hizo push ni se modificó AWS/Google Cloud.
 
 ## Próximos pasos tras estos puntos de control
 
+### Paso 1 implementado localmente — 11 de noviembre de 2026
+
+Se añadió Perfil → Mis conversaciones → Chat → Volver, con lista autorizada,
+cursor opaco ligado a cuenta y reentrada durante las dos horas posteriores al
+vencimiento del plan. No depende de GET público del detalle. No hay mensajes
+de demostración ni contadores inventados. El estado de anfitrión llega del servidor.
+Las instancias de Chat/lista se separan también por loginEvent, para recuperar
+correctamente el acceso tras otra sesión sin reutilizar un ViewModel cerrado.
+
+Evidencia: **99 pruebas Python**, **84 JVM** y **57 instrumentadas en el Motorola
+(269,216 s), todas aprobadas**. Compilación en 6 min 19 s. Captura de lista a
+320 dp revisada; datos aislados, no actividad AWS real. Se actualizó el inventario
+con los módulos integrados y porcentajes orientativos (aprox. 93%, no certificación).
+Sin push ni despliegue. Contrato, límites y configuración posterior en
+[Paso 1: Mis conversaciones](PASO-1-CONVERSACIONES.md).
+
+### Orden restante
+
 1. Conjunto José + Sebastián: integrado, corregido y probado localmente.
 2. Chat de Rodrigo: integrado, corregido y probado localmente.
 3. Mapa de Alfonso: integrado, corregido y probado localmente.
@@ -205,7 +223,8 @@ No se hizo push ni se modificó AWS/Google Cloud.
    pruebas aisladas no garantizan rutas/tabla/permisos desplegados.
 5. Desplegar juntos los archivos de backend integrados, con autorización y sin
    reemplazarlos por versiones antiguas. Completar los pendientes funcionales
-   documentados (conversaciones, canje, operaciones privilegiadas fuera de lectura).
+   documentados (canje, operaciones privilegiadas fuera de lectura). Conversaciones
+   ya está implementado localmente, pero su ruta nueva todavía necesita despliegue.
 6. Preparar push normal tras verificar de nuevo el remoto. No se ha hecho push
    durante esta revisión.
 

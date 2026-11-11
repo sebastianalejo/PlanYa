@@ -9,6 +9,7 @@ Rutas (API Gateway HTTP API, payload 2.0, TODAS con el autorizador JWT PlanYaAcc
 - GET  /planes/{id}/mensajes?nextKey=C   mensajes ANTERIORES al cursor C
 - GET  /planes/{id}/mensajes?after=C     mensajes NUEVOS posteriores al cursor C
 - POST /planes/{id}/mensajes             cuerpo {"text": "...", "clientMessageId": "UUID"}
+- GET  /conversaciones                  chats autorizados aún abiertos, con nextKey opaco
 
 Tabla DynamoDB (variable MESSAGES_TABLE, predeterminada PlanYaMensajes):
 - Clave de partición planId (String) y clave de ordenación sk (String).
@@ -33,7 +34,9 @@ CHAT_WINDOW_SECONDS = 2 * 60 * 60
 MAX_TEXT = 1000
 PAGE_SIZE = 30
 NEWER_PAGE_SIZE = 50
-ROUTES = {"GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}
+ROUTES = {"GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes", "GET /conversaciones"}
+CONVERSATIONS_PAGE_SIZE = 25
+CONVERSATIONS_CURSOR_SECONDS = 15 * 60
 _CURSOR = re.compile(r"\d{13}#[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
@@ -149,6 +152,63 @@ def _sender_name(plans, plan, user, claims):
     return str(claims.get("name") or "Usuario PlanYa")[:80]
 
 
+def list_conversations(plans, messages, user, query, now_seconds):
+    """Una página de planes autorizados; no consulta mensajes ni inventa actividad.
+
+    El cursor se guarda 15 min en la tabla de mensajes (TTL ya existente). Nunca
+    exponer LastEvaluatedKey: podría contener el ID/código de un cupón ajeno.
+    Cada cursor aleatorio está ligado a la cuenta, sin nuevas tablas ni claves.
+    """
+    options = {
+        "Limit": CONVERSATIONS_PAGE_SIZE,
+        "ConsistentRead": True,
+        "FilterExpression": "(attribute_not_exists(#type) OR #type = :plan) AND "
+                            "(#owner = :user OR contains(#members, :user)) AND "
+                            "(attribute_not_exists(#status) OR #status <> :cancelled) AND #expires > :cutoff",
+        "ExpressionAttributeNames": {"#type": "entityType", "#owner": "ownerId", "#members": "attendeeIds",
+                                     "#status": "status", "#expires": "expiresAt"},
+        "ExpressionAttributeValues": {":plan": "PLAN", ":user": user, ":cancelled": "CANCELLED",
+                                      ":cutoff": now_seconds - CHAT_WINDOW_SECONDS},
+        "ProjectionExpression": "id",
+    }
+    raw_cursor = query.get("nextKey")
+    if raw_cursor is not None:
+        cursor = _canonical_uuid(raw_cursor, "nextKey no valido")
+        stored = messages.get_item(Key={"planId": "conversations#" + cursor, "sk": "cursor"},
+                                   ConsistentRead=True).get("Item")
+        if not stored or stored.get("entityType") != "CONVERSATION_CURSOR" or stored.get("userId") != user:
+            raise ValueError("nextKey no valido; actualiza la lista")
+        if stored.get("expiresAt", 0) <= now_seconds:
+            return _error(409, "La lista cambió. Actualiza para continuar", "CURSOR_EXPIRED")
+        key = stored.get("key")
+        if not isinstance(key, dict) or not isinstance(key.get("id"), str) or not 1 <= len(key["id"]) <= 512:
+            raise ValueError("nextKey no valido; actualiza la lista")
+        options["ExclusiveStartKey"] = {"id": key["id"]}
+    scanned = plans.scan(**options)
+    items = []
+    for candidate in scanned.get("Items", []):
+        try:
+            plan_id = _canonical_uuid(candidate.get("id"), "Identificador no valido")
+            # Revalidación consistente: excluir cancelados/salidos aunque cambien tras el Scan.
+            plan, closes_at = chat_access(plans, plan_id, user, now_seconds)
+        except (ChatDenied, ValueError, TypeError):
+            continue
+        items.append({"planId": plan_id, "title": plan.get("title") or "Encuentro",
+                      "hostId": plan.get("ownerId"), "hostName": plan.get("authorName"),
+                      "category": plan.get("category"), "planExpiresAt": int(plan["expiresAt"]),
+                      "chatExpiresAt": closes_at, "isHost": plan.get("ownerId") == user})
+    items.sort(key=lambda item: (item["chatExpiresAt"], item["planId"]))
+    next_cursor = None
+    last_key = scanned.get("LastEvaluatedKey")
+    if last_key:
+        next_cursor = str(uuid.uuid4())
+        messages.put_item(Item={"planId": "conversations#" + next_cursor, "sk": "cursor",
+                                "entityType": "CONVERSATION_CURSOR", "userId": user,
+                                "key": last_key, "expiresAt": now_seconds + CONVERSATIONS_CURSOR_SECONDS})
+    return _response(200, {"success": True, "data": {"userId": user, "items": items,
+                          "nextKey": next_cursor, "serverTime": now_seconds}})
+
+
 def public_message(item, viewer):
     result = {
         "id": item["id"],
@@ -200,6 +260,7 @@ def list_messages(plans, messages, plan_id, user, query, now_ms):
             "serverTime": now_ms // 1000,
             "planTitle": plan.get("title"),
             "isHost": plan.get("ownerId") == user,
+            "hostId": plan.get("ownerId"),
             # Actualización manual: la app no debe presentarlo como tiempo real.
             "realtime": False,
         },
@@ -266,6 +327,8 @@ def handle(event, plans, messages, now_ms=None):
     if route not in ROUTES:
         return _error(404, "Ruta no disponible")
     try:
+        if route == "GET /conversaciones":
+            return list_conversations(plans, messages, user, event.get("queryStringParameters") or {}, now_ms // 1000)
         plan_id = _canonical_uuid((event.get("pathParameters") or {}).get("id"), "Identificador de plan no valido")
         if route == "GET /planes/{id}/mensajes":
             query = event.get("queryStringParameters") or {}

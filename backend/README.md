@@ -118,3 +118,8 @@ Con Chat habilitado, **no activar TTL en `PlanYaPlanes` con `expiresAt`**: el re
 se necesita para comprobar participantes durante las dos horas posteriores. El TTL de
 mensajes corresponde únicamente a `PlanYaMensajes.expiresAt`; el servidor bloquea el
 acceso al llegar la hora aunque la eliminación física se retrase.
+
+`GET /conversaciones` (JWT) lista los chats autorizados todavía abiertos sin pasar
+por el detalle público del plan. Usa cursores opacos ligados a la cuenta y TTL de
+15 minutos en PlanYaMensajes; no retorna LastEvaluatedKey ni mensajes. Nueva ruta
+pendiente de despliegue: `../docs/equipo/PASO-1-CONVERSACIONES.md`.

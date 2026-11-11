@@ -154,6 +154,7 @@ class ChatViewModel(
                 chatExpiresAt = page.chatExpiresAt,
                 clockOffsetSeconds = page.serverTimeSeconds - clock() / 1000,
                 isHost = page.isHost,
+                hostId = page.hostId ?: it.hostId,
                 loading = false, refreshing = false, loaded = true,
                 error = null, refreshError = null,
                 lastUpdatedMillis = clock()

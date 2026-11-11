@@ -123,3 +123,12 @@ acceso al llegar la hora aunque la eliminación física se retrase.
 por el detalle público del plan. Usa cursores opacos ligados a la cuenta y TTL de
 15 minutos en PlanYaMensajes; no retorna LastEvaluatedKey ni mensajes. Nueva ruta
 pendiente de despliegue: `../docs/equipo/PASO-1-CONVERSACIONES.md`.
+
+## Canje de beneficios — primera parte local
+
+`benefit_redemption.py` implementa `POST /canjes` con operador autorizado por
+registro administrativo, local asociado y transacción de consumo/recibo.
+Todavía no se ha desplegado. No concede cupones ni acredita asistencia.
+El paquete final necesita este tercer archivo además de `lambda_function.py`
+y `chat.py`; no desplegar solo uno. Contrato, pruebas y pendientes:
+`../docs/equipo/PASO-2-CANJE-BENEFICIOS.md`.

@@ -109,6 +109,25 @@ class LambdaTests(unittest.TestCase):
         return {"requestContext": {"authorizer": {"jwt": {"claims": {"sub": user, "token_use": "id", "name": "Steve"}}}},
                 "routeKey": route, "pathParameters": {"id": "p1"}, "body": json.dumps(body or {})}
 
+    def test_redemption_dispatch_uses_integrated_module_and_low_level_client(self):
+        module = types.ModuleType("benefit_redemption")
+        module.redeem = Mock(return_value={"statusCode": 403})
+        client = Mock()
+        self.api.boto3.client = Mock(return_value=client)
+        event = self.http_event("POST /canjes")
+        with patch.dict(sys.modules, {"benefit_redemption": module}):
+            self.assertEqual(self.api.lambda_handler(event, None)["statusCode"], 403)
+        args = module.redeem.call_args.args
+        self.assertIs(args[0], self.table)
+        self.assertIs(args[1], event)
+        self.assertIsInstance(args[2], int)
+        self.assertIs(args[3], client)
+        self.api.boto3.client.assert_called_once_with("dynamodb")
+
+    def test_redemption_records_are_not_public_plans(self):
+        for kind in ("BENEFIT_OPERATOR", "BENEFIT_REDEMPTION", "BENEFIT", "BENEFIT_CODE"):
+            self.assertFalse(self.api.is_plan_item({"id": "auxiliary", "entityType": kind}))
+
     def active_plan(self):
         return {"id": "p1", "title": "Cafe", "ownerId": "u1", "category": "CAFE", "capacity": 3,
                 "attendees": ["Steve"], "attendeeIds": ["u1"], "revision": 2, "expiresAt": 4102444800,

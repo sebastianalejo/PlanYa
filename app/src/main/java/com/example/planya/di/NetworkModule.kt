@@ -5,6 +5,7 @@ import com.example.planya.data.remote.api.ChatApi
 import com.example.planya.data.remote.api.PlanApiService
 import com.example.planya.data.remote.api.PlanActionsApi
 import com.example.planya.data.remote.api.PlanPhotoApi
+import com.example.planya.data.remote.api.ReportProblemApi
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -45,6 +46,12 @@ object NetworkModule {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(ChatApi::class.java)
+    }
+    // US-12 Reportar un problema (POST /reportes).
+    val reportProblemApi: ReportProblemApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(ReportProblemApi::class.java)
     }
     val planApi: PlanApiService by lazy {
         val client = OkHttpClient.Builder()

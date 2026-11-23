@@ -809,6 +809,10 @@ def lambda_handler(event, context):
             return activity_request(table, event)
         if event.get("routeKey") == "GET /perfil/confianza":
             return confidence_request(table, event)
+        if event.get("routeKey") in {"POST /reportes", "GET /moderacion/reportes", "PATCH /moderacion/reportes/{id}"}:
+            import reports  # US-12: reportar un problema y moderación (backend/reports.py)
+            return reports.handle(table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")), event,
+                                  int(datetime.now(timezone.utc).timestamp()))
         if event.get("routeKey") in {"GET /conversaciones", "GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}:
             import chat  # US-08: chat temporal en su propio módulo (backend/chat.py)
             return chat.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")))

@@ -42,6 +42,11 @@ import com.example.planya.presentation.screens.home.*
 import com.example.planya.presentation.screens.interests.InterestsScreen
 import com.example.planya.presentation.screens.plandetail.PlanDetailScreen
 import com.example.planya.presentation.screens.chat.ChatScreen
+import com.example.planya.presentation.screens.report.ReportProblemScreen
+import com.example.planya.presentation.screens.report.ReportProblemViewModel
+import com.example.planya.data.repository.ReportProblemRepositoryImpl
+import com.example.planya.domain.model.ReportTarget
+import com.example.planya.domain.model.ReportTargetType
 import com.example.planya.presentation.screens.chat.ChatViewModel
 import com.example.planya.presentation.screens.chat.ConversationsScreen
 import com.example.planya.presentation.screens.chat.ConversationsViewModel
@@ -443,6 +448,9 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onEdit = { controller.navigate("editar/${Uri.encode(id)}") },
                     onRetry = { if (id != null) viewModel.openPlan(id) }, area = state.area, nowSeconds = now,
                     onChat = { if (id != null) controller.navigate("chat/${Uri.encode(id)}") { launchSingleTop = true } },
+                    onReport = { detail.plan?.let { plan ->
+                        controller.navigate(reportRoute(ReportTarget(ReportTargetType.PLAN, plan.id, plan.title))) { launchSingleTop = true }
+                    } },
                     onLocation = { showLocation = true }, onBack = { controller.popBackStack() },
                     onCreate = ::create, onNavigate = ::navigate,
                     onDirections = { plan ->
@@ -481,7 +489,44 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     val plan = detail.plan?.takeIf { it.id == id }
                     ChatScreen(chatState, userId = session.userId, hostId = plan?.ownerId, fallbackTitle = plan?.title,
                         onDraftChange = chat::draft, onSend = chat::send, onRetry = chat::retry, onDiscard = chat::discard,
-                        onRefresh = chat::refresh, onLoadOlder = chat::loadOlder, onBack = { controller.popBackStack() })
+                        onRefresh = chat::refresh, onLoadOlder = chat::loadOlder, onBack = { controller.popBackStack() },
+                        onReportMessage = { message ->
+                            controller.navigate(reportRoute(ReportTarget(ReportTargetType.MESSAGE, id, plan?.title ?: chatState.planTitle,
+                                messageId = message.cursor, messageAuthor = message.senderName))) { launchSingleTop = true }
+                        })
+                }
+            }
+            // US-12: «Reportar un problema». Una sola pantalla para Detalle (plan) y Chat (mensaje).
+            // El contexto llega por la navegación y el servidor lo vuelve a validar al enviar.
+            composable("reportar/{planId}?titulo={titulo}&mensaje={mensaje}&autor={autor}",
+                arguments = listOf(navArgument("planId") { type = NavType.StringType }) +
+                    listOf("titulo", "mensaje", "autor").map { name ->
+                        navArgument(name) { type = NavType.StringType; nullable = true; defaultValue = null }
+                    }) { entry ->
+                val args = entry.arguments
+                fun arg(name: String) = args?.getString(name)?.takeIf { it.isNotBlank() }
+                val target = arg("planId")?.let { planId ->
+                    val messageId = arg("mensaje")
+                    ReportTarget(if (messageId != null) ReportTargetType.MESSAGE else ReportTargetType.PLAN, planId, arg("titulo"),
+                        messageId = messageId, messageAuthor = arg("autor"))
+                }
+                val session = auth.session
+                if (target == null) {
+                    LaunchedEffect(Unit) { controller.popBackStack() }
+                } else if (session == null) {
+                    LaunchedEffect(Unit) { access(reportRoute(target)) }
+                } else {
+                    // Sin loginEvent en la clave: si la sesión vence, el borrador se conserva al volver a ingresar.
+                    val report: ReportProblemViewModel = viewModel(entry,
+                        key = "report-${target.planId}-${target.messageId}-${session.userId}",
+                        factory = ReportProblemViewModel.Factory(target,
+                            ReportProblemRepositoryImpl(NetworkModule.reportProblemApi, session.userId) { account.repository.token(session.userId) }))
+                    val reportState by report.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(reportState.requiresLogin) { if (reportState.requiresLogin) {
+                        report.acknowledgeLogin(); account.expiredSession(); access(reportRoute(target))
+                    } }
+                    ReportProblemScreen(reportState, onReason = report::selectReason, onDescription = report::description,
+                        onSend = report::send, onClose = { controller.popBackStack() })
                 }
             }
         }
@@ -493,4 +538,14 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
     }, onDismiss = { showLocation = false }, savedGooglePlaceId = state.savedGooglePlaceId)
     if (actionError != null) AlertDialog(onDismissRequest = { actionError = null }, title = { Text("No se pudo completar") },
         text = { Text(actionError!!) }, confirmButton = { TextButton(onClick = { actionError = null }) { Text("Entendido") } })
+}
+
+/** US-12: ruta de «Reportar un problema». Los valores van codificados (el id del mensaje lleva '#'). */
+private fun reportRoute(target: ReportTarget): String = buildString {
+    append("reportar/").append(Uri.encode(target.planId))
+    append("?titulo=").append(Uri.encode(target.planTitle.orEmpty()))
+    if (target.type == ReportTargetType.MESSAGE) {
+        append("&mensaje=").append(Uri.encode(target.messageId.orEmpty()))
+        append("&autor=").append(Uri.encode(target.messageAuthor.orEmpty()))
+    }
 }

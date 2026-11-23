@@ -1,5 +1,16 @@
 # Backend inicial de PlanYa
 
+## Actualización: Mis reportes US-13 (Alfonso, 23 de noviembre)
+
+Sexto módulo en la raíz del ZIP: **`report_queries.py`** (solo lectura). Rutas JWT nuevas,
+integración PlanYaApi y autorizador PlanYaUsuarios: **GET /reportes** y **GET /reportes/{id}**.
+Requiere el índice **GSI_ReportsByReporter** (partición `reporterId`, orden `reportSortKey`,
+proyección ALL) en PlanYaPlanes y la variable opcional `REPORTS_INDEX` si se usa otro nombre.
+Sin el índice responde 503 `REPORTS_INDEX_UNAVAILABLE`, nunca una lista vacía falsa.
+Los reportes los crea US-12 (`POST /reportes`); el modelo compartido está en
+[Contrato REPORT](../docs/equipo/CONTRATO-REPORTES.md) y la entrega en
+[US-13 entrega](../docs/equipo/US-13-ENTREGA.md). Ningún `reporte#` aparece en GET /planes.
+
 ## Actualización: valoraciones (11 de noviembre)
 
 El ZIP actual contiene **cinco** módulos en la raíz: `lambda_function.py`,

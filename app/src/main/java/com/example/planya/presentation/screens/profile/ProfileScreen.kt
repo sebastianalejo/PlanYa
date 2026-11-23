@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Lock
@@ -60,7 +61,9 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
     confidence: ProfileConfidence? = null, confidenceLoading: Boolean = false, confidenceError: String? = null,
     onRetryConfidence: () -> Unit = {},
     onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null, onOperator: (() -> Unit)? = null,
-    onRatings: (() -> Unit)? = null) {
+    onRatings: (() -> Unit)? = null,
+    // US-13: seguimiento de los reportes propios.
+    onReports: (() -> Unit)? = null) {
     val signedIn = name != null
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = busy) { /* Esperar a que termine el cierre de sesión. */ }
@@ -143,7 +146,7 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                         TextButton(onClick = onRetryInterests, enabled = !busy && !interestsSyncing) { Text("Reintentar intereses") }
                     }
                 }
-                if (signedIn && (onChat != null || onBenefits != null)) item {
+                if (signedIn && (onChat != null || onBenefits != null || onReports != null)) item {
                     ProfileGroup("Comunidad") {
                         onChat?.let {
                             ProfileOption(Icons.AutoMirrored.Outlined.Chat, "Mis conversaciones", "Chats de tus encuentros", !busy, it)
@@ -151,6 +154,10 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                         }
                         onBenefits?.let {
                             ProfileOption(Icons.Outlined.CardGiftcard, "Mis beneficios", "Cupones y descuentos disponibles", !busy, it)
+                        }
+                        onReports?.let {
+                            if (onChat != null || onBenefits != null) HorizontalDivider(Modifier.padding(start = 64.dp), color = OutlineSoft.copy(alpha = .6f))
+                            ProfileOption(Icons.Outlined.Flag, "Mis reportes", "Estado y respuesta de tus reportes", !busy, it)
                         }
                     }
                 }

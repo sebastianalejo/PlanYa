@@ -204,7 +204,7 @@ def is_plan_item(item):
     # Lista positiva: ninguna entidad privada/nueva se convierte en un plan público.
     return (isinstance(item, dict) and item.get("entityType") in (None, "PLAN")
             and not str(item.get("id", "")).startswith(
-                ("perfil#", "beneficio#", "codigo#", "asistencia#", "valoracion#")))
+                ("perfil#", "beneficio#", "codigo#", "asistencia#", "valoracion#", "reporte#")))
 
 
 def public_verification(profile):
@@ -805,6 +805,11 @@ def lambda_handler(event, context):
             import benefit_redemption
             return benefit_redemption.redeem(table, event, int(datetime.now(timezone.utc).timestamp()),
                                              boto3.client("dynamodb"))
+        if event.get("routeKey") in {"GET /reportes", "GET /reportes/{id}"}:
+            import report_queries  # US-13: Mis reportes, solo lectura (backend/report_queries.py)
+            return report_queries.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")),
+                                         int(datetime.now(timezone.utc).timestamp()),
+                                         read_page_cursor, save_page_cursor, PageCursorError)
         if event.get("routeKey") == "GET /perfil/actividad":
             return activity_request(table, event)
         if event.get("routeKey") == "GET /perfil/confianza":

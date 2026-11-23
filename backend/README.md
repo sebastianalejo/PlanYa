@@ -11,6 +11,20 @@ PlanYaUsuarios. Guía y limitaciones:
 Los apartados inferiores que dicen «no desplegado» o «cuatro módulos» son
 históricos anteriores a esta actualización.
 
+## Actualización: opiniones recibidas (23 de noviembre)
+
+La rama `us11-sebastian` añade `GET /perfil/valoraciones-recibidas` en
+`ratings.py`, con JWT, resumen desde `ratingCount`/`ratingSum`, historial propio
+paginado, cursor privado en PlanYaMensajes y whitelist que oculta al evaluador.
+El paquete sigue teniendo **cinco** módulos; no se añade otro archivo.
+La guía, el contrato, los criterios y el estado real están en
+[US-11: Opiniones recibidas](../docs/equipo/US-11-OPINIONES-RECIBIDAS.md).
+
+Si se define `RATINGS_RECEIVED_INDEX=targetUserId-createdAt-index`, la lista usa
+el GSI propuesto en PlanYaPlanes. Sin esa variable se usa el fallback Scan con
+tope defensivo (MVP). Crear la ruta en API Gateway con el autorizador
+PlanYaUsuarios; sin esa ruta Android mostrará que el servicio no está habilitado.
+
 ## Estado de esta versión local
 
 Además de la lectura pública ya desplegada, el archivo local incluye creación,

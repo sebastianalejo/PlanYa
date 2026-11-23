@@ -58,6 +58,7 @@ import com.example.planya.data.operator.OperatorJournal
 import com.example.planya.data.operator.OperatorRepositoryImpl
 import com.example.planya.presentation.screens.profile.*
 import com.example.planya.data.profile.ProfileRepository
+import com.example.planya.data.profile.ReceivedRatingsRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
@@ -277,7 +278,9 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
                     onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } },
                     onOperator = { controller.navigate("operador") { launchSingleTop = true } },
-                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } })
+                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } },
+                    onReceivedRatings = if (auth.session != null)
+                        ({ controller.navigate("perfil/opiniones") { launchSingleTop = true } }) else null)
             }
             composable("valoraciones") { entry ->
                 val session = auth.session
@@ -299,6 +302,29 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
                         onRefresh = ratingsModel::load, onSelect = ratingsModel::select, onScore = ratingsModel::score,
                         onReview = ratingsModel::review, onDismiss = ratingsModel::dismiss, onSave = ratingsModel::save)
+                }
+            }
+            // US-11: historial propio de notas recibidas; el servidor resuelve el resumen y la privacidad.
+            composable("perfil/opiniones") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("perfil/opiniones") }
+                } else {
+                    val receivedModel: ReceivedRatingsViewModel = viewModel(entry,
+                        key = "received-ratings-${session.userId}-${auth.loginEvent}",
+                        factory = ReceivedRatingsViewModel.Factory(
+                            ReceivedRatingsRepository(NetworkModule.receivedRatingsApi, session.userId) {
+                                account.repository.token(session.userId)
+                            }))
+                    val receivedState by receivedModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { receivedModel.load() }
+                    LaunchedEffect(receivedState.requiresLogin) { if (receivedState.requiresLogin) {
+                        receivedModel.acknowledgeLogin(); account.expiredSession(); access("perfil/opiniones")
+                    } }
+                    ReceivedRatingsScreen(receivedState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = receivedModel::refresh, onLoadMore = receivedModel::loadMore,
+                        onRetry = receivedModel::retry)
                 }
             }
             composable("operador") { entry ->

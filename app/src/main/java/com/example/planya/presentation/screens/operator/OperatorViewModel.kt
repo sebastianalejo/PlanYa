@@ -19,7 +19,9 @@ data class OperatorUiState(val offers: List<OperatorOffer> = emptyList(), val ne
     val denied: Boolean = false, val requiresLogin: Boolean = false, val error: String? = null,
     val offer: OperatorOffer? = null, val plan: OperatorPlan? = null,
     val redeemTab: Boolean = false, val code: String = "", val pending: OperatorCommand? = null,
-    val operationError: String? = null, val success: String? = null)
+    val operationError: String? = null, val success: String? = null,
+    // US-14: rechazo de un QR ajeno al contrato y recibo del canje confirmado por el servidor.
+    val scanError: String? = null, val receipt: OperatorReceipt? = null)
 
 class OperatorViewModel(private val repository: OperatorRepository,
     private val journal: OperatorRequestJournal) : ViewModel() {
@@ -70,14 +72,35 @@ class OperatorViewModel(private val repository: OperatorRepository,
     fun reviewCode() {
         if (blocked()) return
         val current = _state.value
-        val code = current.code.trim()
-        if (!Regex("(?:[A-F0-9]{12}|[A-F0-9]{32})").matches(code)) {
+        val code = parseOperatorCode(current.code.trim())
+        if (code == null) {
             _state.value = current.copy(error = "Escribe o pega el código completo del cupón."); return
         }
         try {
             _state.value = current.copy(pending = OperatorCommand(code = code,
                 requestId = journal.requestId(listOf("redemption", code))), operationError = null, success = null)
         } catch (failure: Exception) { _state.value = current.copy(error = failure.message) }
+    }
+    /**
+     * Recibe el texto de un QR leído con la cámara. Solo prepara la revisión: no envía nada al servidor.
+     * Mientras haya una revisión o un envío en curso se ignoran los demás fotogramas, así que varias
+     * lecturas del mismo QR nunca generan varias solicitudes.
+     */
+    fun scanCode(raw: String) {
+        if (blocked()) return
+        val code = parseOperatorCode(raw)
+        if (code == null) {
+            _state.value = _state.value.copy(scanError = "Este QR no es un cupón de PlanYa. No se envió ningún canje.")
+            return
+        }
+        _state.value = _state.value.copy(code = code, scanError = null, error = null, success = null, receipt = null)
+        reviewCode()
+    }
+    /** Descarta la lectura actual y vuelve a activar la cámara. No revierte una solicitud ya enviada. */
+    fun rescan() {
+        if (closed || _state.value.writing) return
+        _state.value = _state.value.copy(pending = null, operationError = null, code = "", scanError = null,
+            error = null, success = null, receipt = null)
     }
     fun dismissReview() { if (!_state.value.writing) _state.value = _state.value.copy(pending = null, operationError = null) }
     fun confirm() {
@@ -86,9 +109,10 @@ class OperatorViewModel(private val repository: OperatorRepository,
         _state.value = _state.value.copy(writing = true, operationError = null)
         viewModelScope.launch {
             try {
-                if (command.code != null) repository.redeem(command.code, command.requestId)
+                val receipt = if (command.code != null) repository.redeem(command.code, command.requestId)
                 else repository.confirm(command.offerId!!, command.planId!!, command.userId!!, command.requestId)
                 if (!closed) _state.value = _state.value.copy(writing = false, pending = null, code = "",
+                    receipt = receipt.takeIf { command.code != null },
                     success = if (command.code != null) "Canje confirmado por el servidor." else "Asistencia confirmada y cupón emitido por el servidor.")
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: AuthSessionRequiredException) { closeForLogin() }

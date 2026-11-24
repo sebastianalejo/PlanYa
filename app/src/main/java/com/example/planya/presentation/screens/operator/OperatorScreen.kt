@@ -26,7 +26,7 @@ import com.example.planya.ui.theme.*
 fun OperatorScreen(state: OperatorUiState, onBack: () -> Unit, onRefresh: () -> Unit,
     onMore: () -> Unit, onTab: (Boolean) -> Unit, onSelect: (OperatorOffer, String) -> Unit,
     onCatalog: () -> Unit, onMember: (OperatorMember) -> Unit, onCode: (String) -> Unit,
-    onReviewCode: () -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    onReviewCode: () -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit, onScan: () -> Unit = {}) {
     BackHandler(enabled = state.writing || state.pending != null) { if (!state.writing) onDismiss() }
     val enabled = !state.loading && !state.writing && state.pending == null
     Scaffold(containerColor = ScreenBg, topBar = {
@@ -79,6 +79,8 @@ fun OperatorScreen(state: OperatorUiState, onBack: () -> Unit, onRefresh: () -> 
                         OperatorCard {
                             Text("Canjear un cupón", style = MaterialTheme.typography.titleMedium, color = Indigo)
                             Text("Pide a la persona su código vigente. No uses su contraseña ni un código de inicio de sesión.", color = TextMuted)
+                            Button(onClick = onScan, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("operator-scan"),
+                                shape = RoundedCornerShape(50), colors = ButtonDefaults.buttonColors(containerColor = Indigo)) { Text("Escanear con la cámara") }
                             OutlinedTextField(value = state.code, onValueChange = onCode, enabled = enabled,
                                 label = { Text("Código del cupón") }, singleLine = true,
                                 modifier = Modifier.fillMaxWidth().testTag("operator-code"))

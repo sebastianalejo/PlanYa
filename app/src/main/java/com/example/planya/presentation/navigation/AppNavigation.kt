@@ -57,6 +57,7 @@ import com.example.planya.presentation.screens.map.MapScreen
 import com.example.planya.presentation.screens.map.MapViewModel
 import com.example.planya.data.location.DeviceLocationRepository
 import com.example.planya.presentation.screens.profile.ProfileScreen
+import com.example.planya.presentation.screens.operator.OperatorScanScreen
 import com.example.planya.presentation.screens.operator.OperatorScreen
 import com.example.planya.presentation.screens.operator.OperatorViewModel
 import com.example.planya.data.operator.OperatorJournal
@@ -115,6 +116,9 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
             return BenefitsViewModel(GetBenefitsUseCase(repository), GetBenefitUseCase(repository), GetBenefitCodeUseCase(repository), userId) as T
         }
     }
+    fun operatorFactory(userId: String) = OperatorViewModel.Factory(OperatorRepositoryImpl(NetworkModule.operatorApi, userId) {
+        account.repository.token(userId)
+    }, OperatorJournal(context, userId))
     var showLocation by remember { mutableStateOf(false) }
     var requestedFeed by rememberSaveable { mutableStateOf<PlanFeedScope?>(null) }
     var logoutRequested by rememberSaveable { mutableStateOf(false) }
@@ -339,9 +343,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     LaunchedEffect(Unit) { access("operador") }
                 } else {
                     val model: OperatorViewModel = viewModel(entry, key = "operator-${session.userId}-${auth.loginEvent}",
-                        factory = OperatorViewModel.Factory(OperatorRepositoryImpl(NetworkModule.operatorApi, session.userId) {
-                            account.repository.token(session.userId)
-                        }, OperatorJournal(context, session.userId)))
+                        factory = operatorFactory(session.userId))
                     val operatorState by model.state.collectAsStateWithLifecycle()
                     LaunchedEffect(entry, auth.loginEvent) { model.load() }
                     LaunchedEffect(operatorState.requiresLogin) { if (operatorState.requiresLogin) {
@@ -352,7 +354,30 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onRefresh = { model.load() }, onMore = { model.load(true) }, onTab = model::tab,
                         onSelect = model::selectPlan, onCatalog = model::showCatalog, onMember = model::reviewAttendance,
                         onCode = model::code, onReviewCode = model::reviewCode,
-                        onConfirm = model::confirm, onDismiss = model::dismissReview)
+                        onConfirm = model::confirm, onDismiss = model::dismissReview,
+                        onScan = { controller.navigate("operador/escanear") { launchSingleTop = true } })
+                }
+            }
+            // US-14: lector de QR. Comparte el ViewModel del panel para reutilizar el mismo canje y su requestId.
+            composable("operador/escanear") { entry ->
+                val session = auth.session
+                val panel = remember(controller) { runCatching { controller.getBackStackEntry("operador") }.getOrNull() }
+                if (session == null || panel == null) {
+                    LaunchedEffect(Unit) {
+                        if (session == null) access("operador")
+                        else controller.navigate("operador") { popUpTo("operador/escanear") { inclusive = true }; launchSingleTop = true }
+                    }
+                } else {
+                    val model: OperatorViewModel = viewModel(panel, key = "operator-${session.userId}-${auth.loginEvent}",
+                        factory = operatorFactory(session.userId))
+                    val scanState by model.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(scanState.requiresLogin) { if (scanState.requiresLogin) { account.expiredSession(); access("operador") } }
+                    // Si el servidor retira el permiso de operador, se vuelve al panel que muestra el acceso restringido.
+                    LaunchedEffect(scanState.denied) { if (scanState.denied) controller.popBackStack() }
+                    fun leave() { model.rescan(); if (!controller.popBackStack()) navigate(BottomTab.PERFIL) }
+                    OperatorScanScreen(scanState, onBack = ::leave,
+                        onManual = { model.tab(true); controller.popBackStack() },
+                        onScanned = model::scanCode, onConfirm = model::confirm, onRescan = model::rescan)
                 }
             }
             // US-13 Mis reportes: solo lectura, ligado a la cuenta y al evento de ingreso.

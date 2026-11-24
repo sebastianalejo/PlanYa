@@ -17,5 +17,13 @@ interface OperatorRepository {
     suspend fun redeem(code: String, requestId: String): OperatorReceipt
 }
 
+private val OPERATOR_CODE = Regex("(?:[A-F0-9]{12}|[A-F0-9]{32})")
+
+/**
+ * Valida un texto leído de un QR contra el contrato del canje: código opaco hexadecimal en
+ * mayúsculas de 12 o 32 caracteres. Cualquier otra cosa (URL, texto libre) se rechaza sin interpretarla.
+ */
+fun parseOperatorCode(raw: String?): String? = raw?.takeIf { OPERATOR_CODE.matches(it) }
+
 /** Guarda solo hash de la operación y requestId, nunca código, nombre o JWT. */
 fun interface OperatorRequestJournal { fun requestId(payload: List<String>): String }

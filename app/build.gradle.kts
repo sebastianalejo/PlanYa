@@ -63,6 +63,12 @@ dependencies {
     implementation(libs.google.material.views)
     // QR real (Apache-2.0) para mostrar el código de canje generado por el servidor.
     implementation(libs.zxing.core)
+    // US-14: lector de QR del operador. ML Kit con modelo incorporado (no descarga nada al abrir).
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
     implementation(libs.coil.compose)
     implementation(libs.coil.network)
     implementation(platform(libs.androidx.compose.bom))

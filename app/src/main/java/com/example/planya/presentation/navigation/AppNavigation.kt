@@ -42,6 +42,11 @@ import com.example.planya.presentation.screens.home.*
 import com.example.planya.presentation.screens.interests.InterestsScreen
 import com.example.planya.presentation.screens.plandetail.PlanDetailScreen
 import com.example.planya.presentation.screens.chat.ChatScreen
+import com.example.planya.presentation.screens.report.ReportProblemScreen
+import com.example.planya.presentation.screens.report.ReportProblemViewModel
+import com.example.planya.data.repository.ReportProblemRepositoryImpl
+import com.example.planya.domain.model.ReportTarget
+import com.example.planya.domain.model.ReportTargetType
 import com.example.planya.presentation.screens.chat.ChatViewModel
 import com.example.planya.presentation.screens.chat.ConversationsScreen
 import com.example.planya.presentation.screens.chat.ConversationsViewModel
@@ -58,6 +63,7 @@ import com.example.planya.data.operator.OperatorJournal
 import com.example.planya.data.operator.OperatorRepositoryImpl
 import com.example.planya.presentation.screens.profile.*
 import com.example.planya.data.profile.ProfileRepository
+import com.example.planya.data.profile.ReceivedRatingsRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
@@ -277,7 +283,10 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
                     onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } },
                     onOperator = { controller.navigate("operador") { launchSingleTop = true } },
-                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } })
+                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } },
+                    onReports = { controller.navigate("reportes") { launchSingleTop = true } },
+                    onReceivedRatings = if (auth.session != null)
+                        ({ controller.navigate("perfil/opiniones") { launchSingleTop = true } }) else null)
             }
             composable("valoraciones") { entry ->
                 val session = auth.session
@@ -301,6 +310,29 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onReview = ratingsModel::review, onDismiss = ratingsModel::dismiss, onSave = ratingsModel::save)
                 }
             }
+            // US-11: historial propio de notas recibidas; el servidor resuelve el resumen y la privacidad.
+            composable("perfil/opiniones") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("perfil/opiniones") }
+                } else {
+                    val receivedModel: ReceivedRatingsViewModel = viewModel(entry,
+                        key = "received-ratings-${session.userId}-${auth.loginEvent}",
+                        factory = ReceivedRatingsViewModel.Factory(
+                            ReceivedRatingsRepository(NetworkModule.receivedRatingsApi, session.userId) {
+                                account.repository.token(session.userId)
+                            }))
+                    val receivedState by receivedModel.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { receivedModel.load() }
+                    LaunchedEffect(receivedState.requiresLogin) { if (receivedState.requiresLogin) {
+                        receivedModel.acknowledgeLogin(); account.expiredSession(); access("perfil/opiniones")
+                    } }
+                    ReceivedRatingsScreen(receivedState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = receivedModel::refresh, onLoadMore = receivedModel::loadMore,
+                        onRetry = receivedModel::retry)
+                }
+            }
             composable("operador") { entry ->
                 val session = auth.session
                 if (session == null) {
@@ -321,6 +353,29 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onSelect = model::selectPlan, onCatalog = model::showCatalog, onMember = model::reviewAttendance,
                         onCode = model::code, onReviewCode = model::reviewCode,
                         onConfirm = model::confirm, onDismiss = model::dismissReview)
+                }
+            }
+            // US-13 Mis reportes: solo lectura, ligado a la cuenta y al evento de ingreso.
+            composable("reportes") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("reportes") }
+                } else {
+                    val reports: com.example.planya.presentation.screens.reports.MyReportsViewModel = viewModel(entry,
+                        key = "reports-${session.userId}-${auth.loginEvent}",
+                        factory = com.example.planya.presentation.screens.reports.MyReportsViewModel.Factory(
+                            com.example.planya.data.repository.ReportsRepositoryImpl(NetworkModule.reportsApi, session.userId) {
+                                account.repository.token(session.userId)
+                            }))
+                    val reportsState by reports.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { reports.refresh() }
+                    LaunchedEffect(reportsState.requiresLogin) { if (reportsState.requiresLogin) {
+                        reports.acknowledgeLogin(); account.expiredSession(); access("reportes")
+                    } }
+                    com.example.planya.presentation.screens.reports.MyReportsScreen(reportsState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = reports::refresh, onRetry = reports::retry, onFilter = reports::selectFilter,
+                        onToggle = reports::toggle, onRetryDetail = reports::retryDetail, onLoadMore = reports::loadMore)
                 }
             }
             composable("conversaciones") { entry ->
@@ -443,6 +498,9 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onEdit = { controller.navigate("editar/${Uri.encode(id)}") },
                     onRetry = { if (id != null) viewModel.openPlan(id) }, area = state.area, nowSeconds = now,
                     onChat = { if (id != null) controller.navigate("chat/${Uri.encode(id)}") { launchSingleTop = true } },
+                    onReport = { detail.plan?.let { plan ->
+                        controller.navigate(reportRoute(ReportTarget(ReportTargetType.PLAN, plan.id, plan.title))) { launchSingleTop = true }
+                    } },
                     onLocation = { showLocation = true }, onBack = { controller.popBackStack() },
                     onCreate = ::create, onNavigate = ::navigate,
                     onDirections = { plan ->
@@ -481,7 +539,44 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     val plan = detail.plan?.takeIf { it.id == id }
                     ChatScreen(chatState, userId = session.userId, hostId = plan?.ownerId, fallbackTitle = plan?.title,
                         onDraftChange = chat::draft, onSend = chat::send, onRetry = chat::retry, onDiscard = chat::discard,
-                        onRefresh = chat::refresh, onLoadOlder = chat::loadOlder, onBack = { controller.popBackStack() })
+                        onRefresh = chat::refresh, onLoadOlder = chat::loadOlder, onBack = { controller.popBackStack() },
+                        onReportMessage = { message ->
+                            controller.navigate(reportRoute(ReportTarget(ReportTargetType.MESSAGE, id, plan?.title ?: chatState.planTitle,
+                                messageId = message.cursor, messageAuthor = message.senderName))) { launchSingleTop = true }
+                        })
+                }
+            }
+            // US-12: «Reportar un problema». Una sola pantalla para Detalle (plan) y Chat (mensaje).
+            // El contexto llega por la navegación y el servidor lo vuelve a validar al enviar.
+            composable("reportar/{planId}?titulo={titulo}&mensaje={mensaje}&autor={autor}",
+                arguments = listOf(navArgument("planId") { type = NavType.StringType }) +
+                    listOf("titulo", "mensaje", "autor").map { name ->
+                        navArgument(name) { type = NavType.StringType; nullable = true; defaultValue = null }
+                    }) { entry ->
+                val args = entry.arguments
+                fun arg(name: String) = args?.getString(name)?.takeIf { it.isNotBlank() }
+                val target = arg("planId")?.let { planId ->
+                    val messageId = arg("mensaje")
+                    ReportTarget(if (messageId != null) ReportTargetType.MESSAGE else ReportTargetType.PLAN, planId, arg("titulo"),
+                        messageId = messageId, messageAuthor = arg("autor"))
+                }
+                val session = auth.session
+                if (target == null) {
+                    LaunchedEffect(Unit) { controller.popBackStack() }
+                } else if (session == null) {
+                    LaunchedEffect(Unit) { access(reportRoute(target)) }
+                } else {
+                    // Sin loginEvent en la clave: si la sesión vence, el borrador se conserva al volver a ingresar.
+                    val report: ReportProblemViewModel = viewModel(entry,
+                        key = "report-${target.planId}-${target.messageId}-${session.userId}",
+                        factory = ReportProblemViewModel.Factory(target,
+                            ReportProblemRepositoryImpl(NetworkModule.reportProblemApi, session.userId) { account.repository.token(session.userId) }))
+                    val reportState by report.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(reportState.requiresLogin) { if (reportState.requiresLogin) {
+                        report.acknowledgeLogin(); account.expiredSession(); access(reportRoute(target))
+                    } }
+                    ReportProblemScreen(reportState, onReason = report::selectReason, onDescription = report::description,
+                        onSend = report::send, onClose = { controller.popBackStack() })
                 }
             }
         }
@@ -493,4 +588,14 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
     }, onDismiss = { showLocation = false }, savedGooglePlaceId = state.savedGooglePlaceId)
     if (actionError != null) AlertDialog(onDismissRequest = { actionError = null }, title = { Text("No se pudo completar") },
         text = { Text(actionError!!) }, confirmButton = { TextButton(onClick = { actionError = null }) { Text("Entendido") } })
+}
+
+/** US-12: ruta de «Reportar un problema». Los valores van codificados (el id del mensaje lleva '#'). */
+private fun reportRoute(target: ReportTarget): String = buildString {
+    append("reportar/").append(Uri.encode(target.planId))
+    append("?titulo=").append(Uri.encode(target.planTitle.orEmpty()))
+    if (target.type == ReportTargetType.MESSAGE) {
+        append("&mensaje=").append(Uri.encode(target.messageId.orEmpty()))
+        append("&autor=").append(Uri.encode(target.messageAuthor.orEmpty()))
+    }
 }

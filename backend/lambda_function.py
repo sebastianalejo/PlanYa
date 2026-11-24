@@ -204,7 +204,7 @@ def is_plan_item(item):
     # Lista positiva: ninguna entidad privada/nueva se convierte en un plan público.
     return (isinstance(item, dict) and item.get("entityType") in (None, "PLAN")
             and not str(item.get("id", "")).startswith(
-                ("perfil#", "beneficio#", "codigo#", "asistencia#", "valoracion#")))
+                ("perfil#", "beneficio#", "codigo#", "asistencia#", "valoracion#", "reporte#")))
 
 
 def public_verification(profile):
@@ -790,9 +790,12 @@ def lambda_handler(event, context):
     # Las escrituras HTTP requieren claims verificados por el autorizador JWT.
     # Los eventos de consola no se mezclan con parámetros enviados por la API.
     if "requestContext" in event:
-        if event.get("routeKey") in {"GET /valoraciones", "POST /valoraciones"}:
+        if event.get("routeKey") in {"GET /valoraciones", "POST /valoraciones", "GET /perfil/valoraciones-recibidas"}:
             import ratings
-            return ratings.handle(table, event, int(datetime.now(timezone.utc).timestamp()), boto3.client("dynamodb"))
+            cursors = (dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes"))
+                       if event.get("routeKey") == "GET /perfil/valoraciones-recibidas" else None)
+            return ratings.handle(table, event, int(datetime.now(timezone.utc).timestamp()),
+                                  boto3.client("dynamodb"), cursors)
         if event.get("routeKey") in {"GET /operador/ofertas", "GET /operador/ofertas/{id}/planes/{planId}"}:
             import operator_panel
             return operator_panel.read(table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")),
@@ -805,10 +808,19 @@ def lambda_handler(event, context):
             import benefit_redemption
             return benefit_redemption.redeem(table, event, int(datetime.now(timezone.utc).timestamp()),
                                              boto3.client("dynamodb"))
+        if event.get("routeKey") in {"GET /reportes", "GET /reportes/{id}"}:
+            import report_queries  # US-13: Mis reportes, solo lectura (backend/report_queries.py)
+            return report_queries.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")),
+                                         int(datetime.now(timezone.utc).timestamp()),
+                                         read_page_cursor, save_page_cursor, PageCursorError)
         if event.get("routeKey") == "GET /perfil/actividad":
             return activity_request(table, event)
         if event.get("routeKey") == "GET /perfil/confianza":
             return confidence_request(table, event)
+        if event.get("routeKey") in {"POST /reportes", "GET /moderacion/reportes", "PATCH /moderacion/reportes/{id}"}:
+            import reports  # US-12: reportar un problema y moderación (backend/reports.py)
+            return reports.handle(table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")), event,
+                                  int(datetime.now(timezone.utc).timestamp()))
         if event.get("routeKey") in {"GET /conversaciones", "GET /planes/{id}/mensajes", "POST /planes/{id}/mensajes"}:
             import chat  # US-08: chat temporal en su propio módulo (backend/chat.py)
             return chat.handle(event, table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")))

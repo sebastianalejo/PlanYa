@@ -13,7 +13,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
@@ -32,6 +34,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.planya.domain.model.ChatBlockReason
+import com.example.planya.domain.model.ChatMessage
 import com.example.planya.domain.model.MAX_CHAT_TEXT
 import com.example.planya.domain.model.chatRemainingLabel
 import com.example.planya.presentation.components.UserAvatar
@@ -61,7 +64,9 @@ fun ChatScreen(
     onRefresh: () -> Unit,
     onLoadOlder: () -> Unit,
     onBack: () -> Unit,
-    nowMillis: () -> Long = { System.currentTimeMillis() }
+    nowMillis: () -> Long = { System.currentTimeMillis() },
+    /** US-12: abre «Reportar un problema» para un mensaje ajeno. Null oculta la opción. */
+    onReportMessage: ((ChatMessage) -> Unit)? = null
 ) {
     var now by remember { mutableLongStateOf(nowMillis()) }
     val latestRefresh by rememberUpdatedState(onRefresh)
@@ -135,7 +140,7 @@ fun ChatScreen(
                                 "Escribe el primero para coordinar el encuentro: punto exacto, hora de llegada o dudas.",
                                 null, {}, Modifier.weight(1f))
                         } else {
-                            MessageList(state, userId, state.hostId ?: hostId, onRetry, onDiscard, onLoadOlder, Modifier.weight(1f))
+                            MessageList(state, userId, state.hostId ?: hostId, onRetry, onDiscard, onLoadOlder, Modifier.weight(1f), onReportMessage)
                         }
                     }
                 }
@@ -147,7 +152,8 @@ fun ChatScreen(
 @Composable
 private fun MessageList(
     state: ChatUiState, userId: String, hostId: String?,
-    onRetry: (String) -> Unit, onDiscard: (String) -> Unit, onLoadOlder: () -> Unit, modifier: Modifier
+    onRetry: (String) -> Unit, onDiscard: (String) -> Unit, onLoadOlder: () -> Unit, modifier: Modifier,
+    onReportMessage: ((ChatMessage) -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val timeFormat = remember { DateFormat.getTimeInstance(DateFormat.SHORT, peruLocale) }
@@ -171,8 +177,11 @@ private fun MessageList(
         items(state.messages.asReversed(), key = { it.id }) { message ->
             val mine = message.senderId == userId
             Bubble(message.text, mine, sender = if (mine) null else message.senderName, senderIsHost = message.senderId == hostId) {
-                Text(timeFormat.format(Date(message.createdAtMillis)) + if (mine) " · Enviado" else "",
-                    style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(timeFormat.format(Date(message.createdAtMillis)) + if (mine) " · Enviado" else "",
+                        style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                    if (!mine && onReportMessage != null) MessageMenu { onReportMessage(message) }
+                }
             }
         }
         item(key = "inicio") {
@@ -189,6 +198,22 @@ private fun MessageList(
                     else -> Text("Inicio de la conversación", style = MaterialTheme.typography.labelMedium, color = TextMuted)
                 }
             }
+        }
+    }
+}
+
+/** Menú de un mensaje ajeno. Reportar no borra el mensaje ni avisa a quien lo escribió. */
+@Composable
+private fun MessageMenu(onReport: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Outlined.MoreVert, "Opciones del mensaje", tint = TextMuted, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Color.White) {
+            DropdownMenuItem(text = { Text("Reportar mensaje") },
+                leadingIcon = { Icon(Icons.Outlined.Flag, null, tint = TextMuted) },
+                onClick = { open = false; onReport() })
         }
     }
 }

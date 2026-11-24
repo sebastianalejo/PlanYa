@@ -101,8 +101,9 @@ También se mejoraron los estados de carga/error/vacío: ver
 | Rodrigo + integración | 8. Chat temporal | Texto, historial, reintento idempotente, permisos y cierre. Lista Mis conversaciones desde Perfil con reentrada después del vencimiento del plan. | Usuario confirmó dos cuentas reales. Falta cierre real por vencimiento/pérdida de permisos. Actualización manual, no tiempo real. | 95% |
 | José + integración | 9. Beneficios | Lista/detalle, filtros, QR/código y panel de operador. Asistencia, emisión/canje transaccional; revisión explícita, requestId persistente y cursores privados conectados con Android. | Usuario confirmó circuito real completo del piloto. Escaneo con cámara y comparación del doble canje real pendientes; entrada manual implementada. | 90% |
 | Sebastián + base Steve | 10. Perfil | Editor, preferencias/sesión, actividad/confianza, estado de verificación y envío de valoraciones elegibles de 1 a 5 con transacción. Accesos a conversaciones, beneficios y operadores. | Falta voto real entre dos asistentes acreditados y proceso de aprobación de verificación. No se presenta un estado vacío como valoración recibida. | 90% |
+| Sebastián | 11. Opiniones recibidas | Historial propio con promedio, total, fecha y referencia del encuentro; paginación con cursor privado, privacidad del evaluador, vacío, error y reintento. | Implementación local con backend y 24 pruebas Android seleccionadas correctas. Pendiente desplegar la ruta Lambda/API Gateway y validar con cuentas reales. | 85% local |
 
-Promedio orientativo de las diez pantallas: **97%** (seis de Steve: **100% del
+Promedio orientativo de las diez pantallas base: **97%** (seis de Steve: **100% del
 alcance actual aceptado**). No equivale a certificar producción, todos los casos
 posibles o el producto original completo. Otros módulos conservan su estado real.
 Las seis tienen interfaz y lógica; Google está confirmado por el usuario y

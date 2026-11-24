@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.NearMe
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
@@ -35,7 +36,8 @@ fun PlanDetailScreen(
     userId: String?, actionBusy: Boolean, onJoin: () -> Unit, onLeave: () -> Unit,
     onEdit: () -> Unit, onCancel: () -> Unit,
     onDirections: (Plan) -> Unit = {}, onShare: (Plan) -> Unit = {},
-    onChat: () -> Unit = {}
+    onChat: () -> Unit = {},
+    onReport: () -> Unit = {}
 ) {
     var confirmation by remember(plan?.id) { mutableStateOf<String?>(null) }
     val expired = plan?.isExpired(nowSeconds) == true
@@ -215,6 +217,14 @@ fun PlanDetailScreen(
                                         style = MaterialTheme.typography.labelMedium, color = Indigo)
                                 }
                             }
+                        }
+                    }
+                    // US-12: reportar un plan ajeno. No cancela el plan ni avisa al anfitrión; el servidor revalida el acceso.
+                    if (!owner) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = onReport, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Icon(Icons.Outlined.Flag, null, Modifier.size(18.dp), tint = TextMuted)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Reportar plan", color = TextMuted, style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }

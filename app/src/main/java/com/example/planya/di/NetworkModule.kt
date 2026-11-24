@@ -5,6 +5,7 @@ import com.example.planya.data.remote.api.ChatApi
 import com.example.planya.data.remote.api.PlanApiService
 import com.example.planya.data.remote.api.PlanActionsApi
 import com.example.planya.data.remote.api.PlanPhotoApi
+import com.example.planya.data.remote.api.ReportProblemApi
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -15,6 +16,11 @@ object NetworkModule {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.profile.RatingsApi::class.java)
+    }
+    val receivedRatingsApi: com.example.planya.data.profile.ReceivedRatingsApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.profile.ReceivedRatingsApi::class.java)
     }
     val operatorApi: com.example.planya.data.operator.OperatorApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
@@ -41,10 +47,22 @@ object NetworkModule {
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(PlanActionsApi::class.java)
     }
+    // US-13 Mis reportes (solo lectura).
+    val reportsApi: com.example.planya.data.remote.api.ReportsApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.remote.api.ReportsApi::class.java)
+    }
     val chatApi: ChatApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(ChatApi::class.java)
+    }
+    // US-12 Reportar un problema (POST /reportes).
+    val reportProblemApi: ReportProblemApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(ReportProblemApi::class.java)
     }
     val planApi: PlanApiService by lazy {
         val client = OkHttpClient.Builder()

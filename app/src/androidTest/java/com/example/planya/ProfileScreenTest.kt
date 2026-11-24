@@ -26,10 +26,12 @@ class ProfileScreenTest {
 
     private fun show(guest: Boolean = false, busy: Boolean = false,
         interests: () -> Unit = {}, location: () -> Unit = {},
-        feed: (PlanFeedScope) -> Unit = {}, login: () -> Unit = {}, logout: () -> Unit = {}) {
+        feed: (PlanFeedScope) -> Unit = {}, login: () -> Unit = {}, logout: () -> Unit = {},
+        received: () -> Unit = {}) {
         compose.setContent { PlanesTheme {
             ProfileScreen(if (guest) null else "Andrea Pérez", if (guest) null else "andrea@example.com",
-                setOf("CAFE"), null, false, busy, null, {}, interests, location, feed, login, logout, {}, {})
+                setOf("CAFE"), null, false, busy, null, {}, interests, location, feed, login, logout, {}, {},
+                onReceivedRatings = received)
         } }
     }
 
@@ -150,6 +152,19 @@ class ProfileScreenTest {
         File(context.cacheDir, "profile-trust-rated.png").outputStream().use {
             screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
+    }
+
+    @Test fun receivedOpinionsEntryOpensItsRouteOnlyWithSession() {
+        var opened = 0
+        show(received = { opened++ })
+        scrollTo("Opiniones recibidas")
+        compose.onNodeWithText("Opiniones recibidas").performClick()
+        compose.runOnIdle { assertEquals(1, opened) }
+    }
+
+    @Test fun guestDoesNotSeeReceivedOpinionsEntry() {
+        show(guest = true)
+        compose.onNodeWithText("Opiniones recibidas").assertDoesNotExist()
     }
 
     @Test fun chatAndBenefitsAreHiddenUntilTheirRoutesExist() {

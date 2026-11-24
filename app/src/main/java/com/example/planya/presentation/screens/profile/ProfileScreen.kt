@@ -61,7 +61,7 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
     confidence: ProfileConfidence? = null, confidenceLoading: Boolean = false, confidenceError: String? = null,
     onRetryConfidence: () -> Unit = {},
     onChat: (() -> Unit)? = null, onBenefits: (() -> Unit)? = null, onOperator: (() -> Unit)? = null,
-    onRatings: (() -> Unit)? = null,
+    onRatings: (() -> Unit)? = null, onReceivedRatings: (() -> Unit)? = null,
     // US-13: seguimiento de los reportes propios.
     onReports: (() -> Unit)? = null) {
     val signedIn = name != null
@@ -128,6 +128,14 @@ fun ProfileScreen(name: String?, email: String?, interests: Set<String>, area: L
                 if (signedIn) item {
                     ProfileGroup("Confianza") {
                         ReputationSummary(confidence, confidenceLoading, confidenceError, onRetryConfidence, onRatings != null)
+                        if (onReceivedRatings != null || onRatings != null) HorizontalDivider(
+                            Modifier.padding(start = 64.dp), color = OutlineSoft.copy(alpha = .6f))
+                        onReceivedRatings?.let { action ->
+                            ProfileOption(Icons.Outlined.StarBorder, "Opiniones recibidas",
+                                "Notas y encuentros que recibiste", !busy, action)
+                        }
+                        if (onReceivedRatings != null && onRatings != null) HorizontalDivider(
+                            Modifier.padding(start = 64.dp), color = OutlineSoft.copy(alpha = .6f))
                         onRatings?.let { action ->
                             ProfileOption(Icons.Filled.Star, "Valorar encuentros", "Opiniones de encuentros con asistencia acreditada", !busy, action)
                         }

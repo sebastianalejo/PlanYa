@@ -1,12 +1,20 @@
-"""Valoraciones de encuentros terminados: asistencia acreditada y voto unico."""
+"""Valoraciones de encuentros terminados: asistencia acreditada, voto unico y recibidas."""
 import json
+import logging
+import os
 import re
 import uuid
 
+RECEIVED_PAGE_SIZE = 20
+CURSOR_SECONDS = 15 * 60
 
-def response(status, message=None, data=None):
+
+def response(status, message=None, data=None, code=None):
+    body = {"success": status == 200, **({"data": data} if data is not None else {"error": message})}
+    if code is not None:
+        body["code"] = code
     return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"},
-            "body": json.dumps({"success": status == 200, **({"data": data} if data is not None else {"error": message})})}
+            "body": json.dumps(body)}
 
 
 def attendance_key(plan, user):
@@ -22,11 +30,226 @@ def eligible_plan(plan, now):
             and isinstance(plan.get("expiresAt"), (int, float)) and plan["expiresAt"] <= now)
 
 
-def handle(table, event, now, client):
+class ReceivedCursorError(ValueError):
+    def __init__(self, expired=False):
+        self.status = 409 if expired else 400
+        self.code = "CURSOR_EXPIRED" if expired else "CURSOR_INVALID"
+        super().__init__("La continuacion vencio o no es valida. Actualiza la lista")
+
+
+def whole_number(value):
+    """Acepta enteros de DynamoDB/JSON y rechaza booleanos, cadenas y decimales."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    try:
+        return number if number == value else None
+    except (TypeError, ValueError):
+        return None
+
+
+def received_cursor(cursors, raw, user, mode, now):
+    """Lee la continuacion privada; nunca acepta una clave interna desde HTTP."""
+    if raw is None:
+        return None
+    try:
+        if not isinstance(raw, str) or str(uuid.UUID(raw)) != raw:
+            raise ValueError()
+    except (ValueError, TypeError, AttributeError):
+        raise ReceivedCursorError() from None
+    if cursors is None:
+        raise RuntimeError("cursor storage unavailable")
+    saved = cursors.get_item(Key={"planId": "page#" + raw, "sk": "cursor"}, ConsistentRead=True).get("Item") or {}
+    if (saved.get("entityType") != "PAGE_CURSOR" or saved.get("scope") != "received-ratings#" + user
+            or saved.get("mode") != mode):
+        raise ReceivedCursorError()
+    try:
+        expires = int(saved.get("expiresAt", 0))
+    except (TypeError, ValueError):
+        expires = 0
+    if expires <= now:
+        raise ReceivedCursorError(expired=True)
+    try:
+        key = json.loads(saved.get("key") or "")
+    except (TypeError, ValueError):
+        raise ReceivedCursorError() from None
+    if not isinstance(key, dict):
+        raise ReceivedCursorError()
+    return key
+
+
+def save_received_cursor(cursors, user, mode, last, now):
+    if last is None:
+        return None
+    if mode == "index":
+        payload = {"targetUserId": str(last.get("targetUserId") or ""),
+                   "createdAt": whole_number(last.get("createdAt")), "id": str(last.get("id") or "")}
+        valid = (payload["targetUserId"] == user and payload["createdAt"] is not None
+                 and payload["createdAt"] > 0 and payload["id"].startswith("valoracion#"))
+    else:
+        payload = {"createdAt": whole_number(last.get("createdAt")), "id": str(last.get("id") or "")}
+        valid = payload["createdAt"] is not None and payload["createdAt"] > 0 and payload["id"].startswith("valoracion#")
+    if not valid:
+        raise RuntimeError("invalid continuation key")
+    if cursors is None:
+        raise RuntimeError("cursor storage unavailable")
+    raw = str(uuid.uuid4())
+    cursors.put_item(Item={"planId": "page#" + raw, "sk": "cursor", "entityType": "PAGE_CURSOR",
+                           "scope": "received-ratings#" + user, "mode": mode,
+                           "key": json.dumps(payload, separators=(",", ":")), "expiresAt": now + CURSOR_SECONDS})
+    return raw
+
+
+def index_start(key, user):
+    if set(key) != {"targetUserId", "createdAt", "id"}:
+        raise ReceivedCursorError()
+    created = whole_number(key.get("createdAt"))
+    ident = key.get("id")
+    if (key.get("targetUserId") != user or created is None or created <= 0
+            or not isinstance(ident, str) or not ident.startswith("valoracion#")):
+        raise ReceivedCursorError()
+    return {"targetUserId": user, "createdAt": created, "id": ident}
+
+
+def scan_start(key):
+    if set(key) != {"createdAt", "id"}:
+        raise ReceivedCursorError()
+    created = whole_number(key.get("createdAt"))
+    ident = key.get("id")
+    if (created is None or created <= 0 or not isinstance(ident, str)
+            or not ident.startswith("valoracion#")):
+        raise ReceivedCursorError()
+    return {"createdAt": created, "id": ident}
+
+
+def received_summary(table, user):
+    profile = table.get_item(Key={"id": "perfil#" + user}, ConsistentRead=True).get("Item") or {}
+    try:
+        count = int(profile.get("ratingCount", 0) or 0)
+        total = float(profile.get("ratingSum", 0) or 0)
+    except (TypeError, ValueError):
+        count, total = 0, 0.0
+    if count <= 0 or total <= 0:
+        return 0, None
+    average = round(total / count, 2)
+    if not 1 <= average <= 5:
+        return 0, None
+    return count, average
+
+
+def rating_values(row):
+    plan_id = row.get("planId")
+    score = whole_number(row.get("score"))
+    created = whole_number(row.get("createdAt"))
+    ident = row.get("id")
+    if (not isinstance(plan_id, str) or not plan_id or score is None or not 1 <= score <= 5
+            or created is None or created <= 0 or not isinstance(ident, str) or not ident):
+        return None
+    return {"planId": plan_id, "score": score, "createdAt": created, "id": ident, "row": row}
+
+
+def received_item(table, rating, cache):
+    """Solo expone campos del encuentro y la nota; nunca al evaluador."""
+    plan_id = rating["planId"]
+    if plan_id not in cache:
+        cache[plan_id] = table.get_item(Key={"id": plan_id}).get("Item") or {}
+    plan = cache[plan_id]
+    available = (bool(plan) and plan.get("entityType") in (None, "PLAN")
+                 and plan.get("status") != "CANCELLED")
+    if available:
+        title = " ".join(str(plan.get("title") or "Encuentro").split())[:120] or "Encuentro"
+    else:
+        title = "Encuentro no disponible"
+    return {"planId": plan_id, "planTitle": title, "score": rating["score"],
+            "createdAt": rating["createdAt"], "planAvailable": available}
+
+
+def received_index_page(table, user, start, index):
+    options = {"IndexName": index, "KeyConditionExpression": "targetUserId = :target",
+               "FilterExpression": "entityType = :rating",
+               "ExpressionAttributeValues": {":target": user, ":rating": "RATING"},
+               "ScanIndexForward": False, "Limit": RECEIVED_PAGE_SIZE}
+    if start is not None:
+        options["ExclusiveStartKey"] = index_start(start, user)
+    page = table.query(**options)
+    cache, items = {}, []
+    for row in page.get("Items", []):
+        rating = rating_values(row)
+        if rating is not None:
+            items.append(received_item(table, rating, cache))
+    return items, page.get("LastEvaluatedKey")
+
+
+def received_scan_page(table, user, start):
+    """Fallback MVP mientras el indice de destinatario no este habilitado."""
+    rows, options = [], {"ConsistentRead": True, "Limit": 100}
+    for _ in range(100):
+        page = table.scan(**options)
+        rows.extend(page.get("Items", []))
+        if not page.get("LastEvaluatedKey"):
+            break
+        options["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+    else:
+        raise RuntimeError("scan limit reached")
+    ratings = []
+    for row in rows:
+        if row.get("entityType") == "RATING" and row.get("targetUserId") == user:
+            rating = rating_values(row)
+            if rating is not None:
+                ratings.append(rating)
+    ratings.sort(key=lambda item: (item["createdAt"], item["id"]), reverse=True)
+    offset = 0
+    if start is not None:
+        wanted = scan_start(start)
+        position = next((position for position, rating in enumerate(ratings)
+                         if rating["createdAt"] == wanted["createdAt"] and rating["id"] == wanted["id"]), None)
+        if position is None:
+            raise ReceivedCursorError()
+        offset = position + 1
+    selected = ratings[offset:offset + RECEIVED_PAGE_SIZE]
+    last = None
+    if offset + len(selected) < len(ratings):
+        last = {"createdAt": selected[-1]["createdAt"], "id": selected[-1]["id"]}
+    cache = {}
+    return [received_item(table, rating, cache) for rating in selected], last
+
+
+def received(table, event, now, cursors, user):
+    query = event.get("queryStringParameters") or {}
+    if not isinstance(query, dict):
+        return response(400, "La continuacion no es valida", code="CURSOR_INVALID")
+    index = os.environ.get("RATINGS_RECEIVED_INDEX", "").strip()
+    mode = "index" if index else "scan"
+    try:
+        start = received_cursor(cursors, query.get("nextKey"), user, mode, now)
+    except ReceivedCursorError as error:
+        return response(error.status, str(error), code=error.code)
+    try:
+        count, average = received_summary(table, user)
+        if mode == "index":
+            items, last = received_index_page(table, user, start, index)
+        else:
+            items, last = received_scan_page(table, user, start)
+        next_key = save_received_cursor(cursors, user, mode, last, now)
+    except ReceivedCursorError as error:
+        return response(error.status, str(error), code=error.code)
+    except Exception:
+        logging.exception("No se pudieron leer las valoraciones recibidas")
+        return response(503, "No pudimos cargar tus opiniones. Reintenta mas tarde")
+    return response(200, data={"userId": user, "count": count, "average": average,
+                               "items": items, "nextKey": next_key})
+
+
+def handle(table, event, now, client, cursors=None):
     claims = event.get("requestContext", {}).get("authorizer", {}).get("jwt", {}).get("claims", {})
     user = claims.get("sub")
     if not user or claims.get("token_use") != "id":
         return response(401, "Inicia sesion para valorar")
+    if event.get("routeKey") == "GET /perfil/valoraciones-recibidas":
+        return received(table, event, now, cursors, user)
     if event.get("routeKey") == "GET /valoraciones":
         # Limite defensivo: si la tabla crece, no presentar una lista incompleta
         # como si no hubiera encuentros. Este MVP no es un indice de produccion.

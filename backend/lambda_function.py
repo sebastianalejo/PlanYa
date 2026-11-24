@@ -790,9 +790,12 @@ def lambda_handler(event, context):
     # Las escrituras HTTP requieren claims verificados por el autorizador JWT.
     # Los eventos de consola no se mezclan con parámetros enviados por la API.
     if "requestContext" in event:
-        if event.get("routeKey") in {"GET /valoraciones", "POST /valoraciones"}:
+        if event.get("routeKey") in {"GET /valoraciones", "POST /valoraciones", "GET /perfil/valoraciones-recibidas"}:
             import ratings
-            return ratings.handle(table, event, int(datetime.now(timezone.utc).timestamp()), boto3.client("dynamodb"))
+            cursors = (dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes"))
+                       if event.get("routeKey") == "GET /perfil/valoraciones-recibidas" else None)
+            return ratings.handle(table, event, int(datetime.now(timezone.utc).timestamp()),
+                                  boto3.client("dynamodb"), cursors)
         if event.get("routeKey") in {"GET /operador/ofertas", "GET /operador/ofertas/{id}/planes/{planId}"}:
             import operator_panel
             return operator_panel.read(table, dynamodb.Table(os.environ.get("MESSAGES_TABLE", "PlanYaMensajes")),

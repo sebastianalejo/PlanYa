@@ -17,6 +17,11 @@ object NetworkModule {
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.profile.RatingsApi::class.java)
     }
+    val receivedRatingsApi: com.example.planya.data.profile.ReceivedRatingsApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.profile.ReceivedRatingsApi::class.java)
+    }
     val operatorApi: com.example.planya.data.operator.OperatorApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())

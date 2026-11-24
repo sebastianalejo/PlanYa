@@ -42,6 +42,12 @@ object NetworkModule {
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create()).build().create(PlanActionsApi::class.java)
     }
+    // US-13 Mis reportes (solo lectura).
+    val reportsApi: com.example.planya.data.remote.api.ReportsApi by lazy {
+        Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
+            .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())
+            .addConverterFactory(GsonConverterFactory.create()).build().create(com.example.planya.data.remote.api.ReportsApi::class.java)
+    }
     val chatApi: ChatApi by lazy {
         Retrofit.Builder().baseUrl(ApiConfig.BASE_URL)
             .client(OkHttpClient.Builder().callTimeout(30, TimeUnit.SECONDS).build())

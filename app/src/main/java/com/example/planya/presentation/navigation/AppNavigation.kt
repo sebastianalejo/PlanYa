@@ -282,7 +282,8 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                     onChat = { controller.navigate("conversaciones") { launchSingleTop = true } },
                     onBenefits = { controller.navigate("beneficios") { launchSingleTop = true } },
                     onOperator = { controller.navigate("operador") { launchSingleTop = true } },
-                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } })
+                    onRatings = { controller.navigate("valoraciones") { launchSingleTop = true } },
+                    onReports = { controller.navigate("reportes") { launchSingleTop = true } })
             }
             composable("valoraciones") { entry ->
                 val session = auth.session
@@ -326,6 +327,29 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onSelect = model::selectPlan, onCatalog = model::showCatalog, onMember = model::reviewAttendance,
                         onCode = model::code, onReviewCode = model::reviewCode,
                         onConfirm = model::confirm, onDismiss = model::dismissReview)
+                }
+            }
+            // US-13 Mis reportes: solo lectura, ligado a la cuenta y al evento de ingreso.
+            composable("reportes") { entry ->
+                val session = auth.session
+                if (session == null) {
+                    LaunchedEffect(Unit) { access("reportes") }
+                } else {
+                    val reports: com.example.planya.presentation.screens.reports.MyReportsViewModel = viewModel(entry,
+                        key = "reports-${session.userId}-${auth.loginEvent}",
+                        factory = com.example.planya.presentation.screens.reports.MyReportsViewModel.Factory(
+                            com.example.planya.data.repository.ReportsRepositoryImpl(NetworkModule.reportsApi, session.userId) {
+                                account.repository.token(session.userId)
+                            }))
+                    val reportsState by reports.state.collectAsStateWithLifecycle()
+                    LaunchedEffect(entry, auth.loginEvent) { reports.refresh() }
+                    LaunchedEffect(reportsState.requiresLogin) { if (reportsState.requiresLogin) {
+                        reports.acknowledgeLogin(); account.expiredSession(); access("reportes")
+                    } }
+                    com.example.planya.presentation.screens.reports.MyReportsScreen(reportsState,
+                        onBack = { if (!controller.popBackStack()) navigate(BottomTab.PERFIL) },
+                        onRefresh = reports::refresh, onRetry = reports::retry, onFilter = reports::selectFilter,
+                        onToggle = reports::toggle, onRetryDetail = reports::retryDetail, onLoadMore = reports::loadMore)
                 }
             }
             composable("conversaciones") { entry ->

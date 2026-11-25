@@ -40,7 +40,8 @@ class InterestsDeviceTest {
                 {}, {}, {}, {}, {}, { logouts++ }, {}, {}, interestsError = "Pendiente de sincronizar",
                 onRetryInterests = { retries++ })
         } }
-        compose.onNodeWithText("Reintentar intereses").performScrollTo().performClick()
+        compose.onNodeWithTag("perfil-lista").performScrollToNode(hasText("Reintentar intereses"))
+        compose.onNodeWithText("Reintentar intereses").performClick()
         compose.runOnIdle { assertEquals(1, retries); assertEquals(0, logouts) }
     }
 }

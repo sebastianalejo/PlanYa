@@ -52,7 +52,8 @@ fun ReportProblemScreen(
     onReason: (ReportReason) -> Unit,
     onDescription: (String) -> Unit,
     onSend: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onViewReport: (() -> Unit)? = null
 ) {
     var confirmDiscard by remember { mutableStateOf(false) }
     fun requestLeave() {
@@ -110,7 +111,7 @@ fun ReportProblemScreen(
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
-            if (receipt != null) ReceiptContent(receipt, state.target.type, onClose)
+            if (receipt != null) ReceiptContent(receipt, state.target.type, onClose, onViewReport)
             else FormContent(state, onReason, onDescription)
         }
     }
@@ -239,7 +240,7 @@ private fun Notice(icon: ImageVector, text: String, tint: Color, background: Col
 }
 
 @Composable
-private fun ReceiptContent(receipt: ReportReceipt, type: ReportTargetType, onClose: () -> Unit) {
+private fun ReceiptContent(receipt: ReportReceipt, type: ReportTargetType, onClose: () -> Unit, onViewReport: (() -> Unit)?) {
     val format = remember { DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.forLanguageTag("es-PE")) }
     Column(
         Modifier.widthIn(max = 680.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -264,6 +265,10 @@ private fun ReceiptContent(receipt: ReportReceipt, type: ReportTargetType, onClo
         }
         Text("Guarda este número para hacer seguimiento de tu reporte.", style = MaterialTheme.typography.bodySmall,
             color = TextMuted, textAlign = TextAlign.Center)
+        if (onViewReport != null) {
+            Button(onClick = onViewReport, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Orange)) { Text("Ver mi reporte") }
+        }
         OutlinedButton(onClick = onClose, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(50),
             border = BorderStroke(1.dp, OutlineSoft)) { Text("Listo", color = Indigo) }
     }

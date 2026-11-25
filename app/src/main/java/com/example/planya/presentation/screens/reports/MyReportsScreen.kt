@@ -58,7 +58,7 @@ fun MyReportsScreen(
     onRetryDetail: (String) -> Unit,
     onLoadMore: () -> Unit
 ) {
-    val visible = if (state.requiresLogin) emptyList() else state.items.filter { state.filter.accepts(it.status) || it.id == state.expandedId }
+    val visible = if (state.requiresLogin) emptyList() else state.items.filter { state.filter.accepts(it.status) }
     Scaffold(containerColor = ScreenBg, topBar = {
         TopAppBar(title = { Text("Mis reportes", style = MaterialTheme.typography.titleMedium) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver") } },

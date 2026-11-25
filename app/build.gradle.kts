@@ -15,6 +15,9 @@ val placesEnabled = placesSecrets.getProperty("GOOGLE_PLACES_ENABLED", "false").
 val mapsEnabled = placesSecrets.getProperty("GOOGLE_MAPS_ENABLED", "false").toBoolean()
 
 android {
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
     namespace = "com.example.planya"
     compileSdk {
         version = release(36) {

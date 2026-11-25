@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint">
+    <!-- Glide's transitive NotificationTarget is unused by PlanYa. -->
+    <issue
+        id="NotificationPermission"
+        message="When targeting Android 13 or higher, posting a permission requires holding the `POST_NOTIFICATIONS` permission (usage from com.bumptech.glide.request.target.NotificationTarget)">
+        <location file="src/main/AndroidManifest.xml" />
+    </issue>
+</issues>

@@ -361,7 +361,7 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
             // US-14: lector de QR. Comparte el ViewModel del panel para reutilizar el mismo canje y su requestId.
             composable("operador/escanear") { entry ->
                 val session = auth.session
-                val panel = remember(controller) { runCatching { controller.getBackStackEntry("operador") }.getOrNull() }
+                val panel = remember(entry) { runCatching { controller.getBackStackEntry("operador") }.getOrNull() }
                 if (session == null || panel == null) {
                     LaunchedEffect(Unit) {
                         if (session == null) access("operador")
@@ -463,12 +463,12 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         onRetry = { model.openDetail(id) }, onRefresh = model::refreshSelected, onCodeExpired = model::expireCode)
                 }
             }
-            composable("editar-perfil") {
+            composable("editar-perfil") { entry ->
                 val session = auth.session
                 if (session == null) {
                     LaunchedEffect(Unit) { access("editar-perfil") }
                 } else {
-                    val owner = remember(controller) { controller.getBackStackEntry("perfil") }
+                    val owner = remember(entry) { controller.getBackStackEntry("perfil") }
                     val model: ProfileViewModel = viewModel(owner, key = "profile-${session.userId}", factory = profileFactory(session.userId))
                     val editing by model.state.collectAsStateWithLifecycle()
                     LaunchedEffect(session.userId, auth.loginEvent) { model.load(preserveDraft = true) }
@@ -601,7 +601,11 @@ fun AppNavigation(viewModel: HomeViewModel, account: AccountViewModel) {
                         report.acknowledgeLogin(); account.expiredSession(); access(reportRoute(target))
                     } }
                     ReportProblemScreen(reportState, onReason = report::selectReason, onDescription = report::description,
-                        onSend = report::send, onClose = { controller.popBackStack() })
+                        onSend = report::send, onClose = { controller.popBackStack() },
+                        onViewReport = {
+                            controller.popBackStack()
+                            controller.navigate("reportes") { launchSingleTop = true }
+                        })
                 }
             }
         }

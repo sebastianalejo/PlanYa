@@ -1,4 +1,5 @@
 """Valoraciones de encuentros terminados: asistencia acreditada, voto unico y recibidas."""
+import hashlib
 import json
 import logging
 import os
@@ -163,7 +164,8 @@ def received_item(table, rating, cache):
         title = " ".join(str(plan.get("title") or "Encuentro").split())[:120] or "Encuentro"
     else:
         title = "Encuentro no disponible"
-    return {"planId": plan_id, "planTitle": title, "score": rating["score"],
+    public_id = hashlib.sha256(("planya-received:" + rating["id"]).encode()).hexdigest()
+    return {"id": public_id, "planId": plan_id, "planTitle": title, "score": rating["score"],
             "createdAt": rating["createdAt"], "planAvailable": available}
 
 

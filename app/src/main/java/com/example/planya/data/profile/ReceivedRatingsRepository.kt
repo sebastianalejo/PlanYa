@@ -15,7 +15,8 @@ data class ReceivedRating(
     val planTitle: String = "",
     val score: Int = 0,
     val createdAt: Long = 0,
-    val planAvailable: Boolean = true
+    val planAvailable: Boolean = true,
+    val id: String? = null
 )
 
 data class ReceivedRatingsPage(
@@ -47,7 +48,7 @@ class ReceivedRatingsRepository(private val api: ReceivedRatingsApi, private val
             check(response.success && page != null) { "El servidor no devolvió tus opiniones recibidas." }
             if (page.userId != userId) throw AuthSessionRequiredException()
             validate(page)
-            return page.copy(items = page.items.distinctBy { Triple(it.planId, it.createdAt, it.score) })
+            return page
         } catch (failure: CancellationException) {
             throw failure
         } catch (failure: HttpException) {

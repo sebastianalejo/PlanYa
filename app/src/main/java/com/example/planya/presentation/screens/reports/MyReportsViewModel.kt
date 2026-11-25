@@ -137,10 +137,12 @@ class MyReportsViewModel(private val repository: ReportsRepository) : ViewModel(
                 val detail = repository.detail(id)
                 if (accessClosed || ticket != generation) return@launch
                 _state.update { s ->
-                    s.copy(details = s.details + (id to ReportDetailState(detail = detail)),
+                    val matchesFilter = s.filter.accepts(detail.summary.status)
+                    s.copy(details = if (matchesFilter) s.details + (id to ReportDetailState(detail = detail)) else s.details - id,
+                        expandedId = s.expandedId?.takeUnless { it == id && !matchesFilter },
                         // La tarjeta adopta el estado más reciente que trae el detalle.
                         items = s.items.map { if (it.id == id) detail.summary else it }
-                            .filter { s.filter.accepts(it.status) || it.id == id })
+                            .filter { s.filter.accepts(it.status) })
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled

@@ -111,9 +111,10 @@ fun AccessScreen(state: AccountState, onMode: (AccessMode) -> Unit,
                         Text("Continuar con Google", style = MaterialTheme.typography.labelLarge.copy(
                             fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium))
                     }
-                    if (mode == AccessMode.REGISTER)
-                    Text("o continúa con tu correo", style = MaterialTheme.typography.bodySmall, color = TextMuted,
-                        modifier = Modifier.align(Alignment.CenterHorizontally))
+                    if (mode == AccessMode.REGISTER) {
+                        Text("o continúa con tu correo", style = MaterialTheme.typography.bodySmall, color = TextMuted,
+                            modifier = Modifier.align(Alignment.CenterHorizontally))
+                    }
                 }
                 if (mode == AccessMode.LOGIN && !emailOpen) {
                     OutlinedButton(onClick = { emailOpen = true; validation = null }, enabled = !busy,

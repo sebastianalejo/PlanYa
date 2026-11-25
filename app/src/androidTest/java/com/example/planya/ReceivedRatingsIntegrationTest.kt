@@ -134,9 +134,9 @@ class ReceivedRatingsIntegrationTest {
 
     @Test fun pageFailureKeepsLoadedCardsAndCanRetryTheSamePage() {
         val source = Source().apply {
-            pages[null] = ReceivedRatingsPage("me", 2, 4.5, listOf(rating("Primera página")), "next")
+            pages[null] = ReceivedRatingsPage("me", 2, 4.5, listOf(rating("Primera página").copy(id = "rating-1")), "next")
             pages["next"] = ReceivedRatingsPage("me", 2, 4.5,
-                listOf(rating("Primera página"), rating("Segunda página", 1000)), null)
+                listOf(rating("Primera página").copy(id = "rating-1"), rating("Segunda página", 1000)), null)
         }
         val model = model(source); screen(model)
         compose.runOnIdle { source.error = IllegalStateException("Falló la página 2") }

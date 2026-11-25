@@ -31,7 +31,7 @@ import java.util.concurrent.Executors
  * - Con [paused] el analizador se retira; la vista previa sigue visible.
  * - [onCode] recibe el texto crudo del QR en el hilo principal. Quien lo use debe validarlo.
  */
-@OptIn(ExperimentalGetImage::class)
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 @Composable
 fun QrCameraPreview(paused: Boolean, onCode: (String) -> Unit, onCameraError: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -50,7 +50,9 @@ fun QrCameraPreview(paused: Boolean, onCode: (String) -> Unit, onCameraError: ()
     DisposableEffect(lifecycleOwner) {
         val future = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        var disposed = false
         future.addListener({
+            if (disposed) return@addListener
             try {
                 val cameraProvider = future.get()
                 provider = cameraProvider
@@ -59,7 +61,10 @@ fun QrCameraPreview(paused: Boolean, onCode: (String) -> Unit, onCameraError: ()
                 cameraProvider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
             } catch (_: Exception) { latestOnError() }
         }, ContextCompat.getMainExecutor(context))
-        onDispose { provider?.unbindAll() }
+        onDispose {
+            disposed = true
+            provider?.unbindAll()
+        }
     }
 
     DisposableEffect(paused) {

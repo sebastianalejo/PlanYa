@@ -1,5 +1,7 @@
 package com.example.planya
 
+import androidx.compose.runtime.collectAsState
+
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.SavedStateHandle
@@ -42,7 +44,9 @@ class PlanEditingTest {
         val pending = CompletableDeferred<Plan>()
         lateinit var editor: PlanEditorViewModel
         compose.runOnIdle { editor = PlanEditorViewModel("p1", GetPlanUseCase(source { pending.await() }), Actions()) }
-        compose.setContent { PlanesTheme { PlanEditorScreen(editor.state.value, true, null, editor::change, editor::save, editor::load, {}) } }
+        compose.setContent { PlanesTheme {
+            PlanEditorScreen(editor.state.collectAsState().value, true, null, editor::change, editor::save, editor::load, {})
+        } }
         compose.onNodeWithText("Título del plan").assertIsNotEnabled()
         compose.runOnIdle { editor.change(PlanDraft(title = "No debe aceptar")); assertEquals("", editor.state.value.draft.title); pending.complete(original) }
         compose.waitUntil { editor.state.value.loaded }

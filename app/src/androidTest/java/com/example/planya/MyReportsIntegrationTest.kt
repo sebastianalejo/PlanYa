@@ -41,8 +41,8 @@ class MyReportsIntegrationTest {
             ReportDetail(item, "Descripción propia del reporte $id",
                 if (item.status.isOpen) null else "Revisamos el contenido y atendimos tu reporte.", item.id != closed.id)
         }
-        override suspend fun page(filter: ReportFilter, nextKey: String?): ReportsPage { pages += filter to nextKey; return page(filter, nextKey) }
-        override suspend fun detail(id: String): ReportDetail { details += id; return detail(id) }
+        override suspend fun page(filter: ReportFilter, nextKey: String?): ReportsPage { pages += filter to nextKey; return page.invoke(filter, nextKey) }
+        override suspend fun detail(id: String): ReportDetail { details += id; return detail.invoke(id) }
     }
 
     @After fun clear() { compose.runOnIdle { models.clear() } }

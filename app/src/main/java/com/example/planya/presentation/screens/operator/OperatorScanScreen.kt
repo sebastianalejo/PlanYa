@@ -65,7 +65,7 @@ fun OperatorScanScreen(state: OperatorUiState, onBack: () -> Unit, onManual: () 
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    BackHandler(enabled = state.writing) { /* Esperar la respuesta del servidor. */ }
+    BackHandler { if (!state.writing) onBack() }
     val reading = state.pending != null && state.pending.code != null
     val paused = reading || state.writing || state.receipt != null
 

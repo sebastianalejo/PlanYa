@@ -69,7 +69,9 @@ class ReceivedRatingsViewModel(private val gateway: ReceivedRatingsGateway) : Vi
                 // El servidor no repite notas al paginar; se conserva el orden recibido.
                 val merged = if (append) _state.value.items + page.items else page.items
                 val seen = mutableSetOf<String>()
-                val items = merged.filter { seen.add("${it.planId}|${it.createdAt}|${it.score}") }
+                val items = merged.filter { rating ->
+                    rating.id?.takeIf { it.isNotBlank() }?.let(seen::add) ?: true
+                }
                 _state.update {
                     it.copy(items = items, count = page.count, average = page.average, nextKey = page.nextKey,
                         loaded = true, loading = false, refreshing = false, loadingMore = false,

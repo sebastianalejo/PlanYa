@@ -36,7 +36,7 @@ class OperatorScanTest {
 
     @Test fun validScanOnlyPreparesAReviewWithoutRedeeming() {
         val vm = model()
-        vm.scanCode(code12)
+        assertTrue(vm.scanCode(code12))
         val state = vm.state.value
         assertEquals(code12, state.pending?.code)
         assertNull(state.scanError)
@@ -46,7 +46,8 @@ class OperatorScanTest {
 
     @Test fun repeatedFramesOfTheSameQrDoNotCreateNewRequests() {
         val vm = model()
-        repeat(30) { vm.scanCode(code12) }
+        assertTrue(vm.scanCode(code12))
+        repeat(29) { assertFalse(vm.scanCode(code12)) }
         assertEquals(1, journal.calls)
         assertEquals(0, repository.redeemCalls)
         assertEquals("request-redemption-$code12", vm.state.value.pending?.requestId)
@@ -62,7 +63,7 @@ class OperatorScanTest {
 
     @Test fun foreignQrIsRejectedWithoutAnyRequest() {
         val vm = model()
-        vm.scanCode("https://example.com/promo")
+        assertFalse(vm.scanCode("https://example.com/promo"))
         val state = vm.state.value
         assertNull(state.pending)
         assertEquals("", state.code)
@@ -77,7 +78,7 @@ class OperatorScanTest {
         vm.rescan()
         assertNull(vm.state.value.pending)
         assertEquals("", vm.state.value.code)
-        vm.scanCode(code32)
+        assertTrue(vm.scanCode(code32))
         assertEquals(code32, vm.state.value.pending?.code)
     }
 

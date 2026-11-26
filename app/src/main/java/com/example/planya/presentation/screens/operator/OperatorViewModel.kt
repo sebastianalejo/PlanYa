@@ -85,16 +85,18 @@ class OperatorViewModel(private val repository: OperatorRepository,
      * Recibe el texto de un QR leído con la cámara. Solo prepara la revisión: no envía nada al servidor.
      * Mientras haya una revisión o un envío en curso se ignoran los demás fotogramas, así que varias
      * lecturas del mismo QR nunca generan varias solicitudes.
+     * Devuelve true solo si la lectura abrió la revisión del canje.
      */
-    fun scanCode(raw: String) {
-        if (blocked()) return
+    fun scanCode(raw: String): Boolean {
+        if (blocked()) return false
         val code = parseOperatorCode(raw)
         if (code == null) {
             _state.value = _state.value.copy(scanError = "Este QR no es un cupón de PlanYa. No se envió ningún canje.")
-            return
+            return false
         }
         _state.value = _state.value.copy(code = code, scanError = null, error = null, success = null, receipt = null)
         reviewCode()
+        return _state.value.pending?.code == code
     }
     /** Descarta la lectura actual y vuelve a activar la cámara. No revierte una solicitud ya enviada. */
     fun rescan() {

@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
+import android.view.HapticFeedbackConstants
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -49,9 +52,10 @@ import com.example.planya.ui.theme.*
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OperatorScanScreen(state: OperatorUiState, onBack: () -> Unit, onManual: () -> Unit, onScanned: (String) -> Unit,
+fun OperatorScanScreen(state: OperatorUiState, onBack: () -> Unit, onManual: () -> Unit, onScanned: (String) -> Boolean,
     onConfirm: () -> Unit, onRescan: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     fun hasCamera() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
     var granted by remember { mutableStateOf(hasCamera()) }
@@ -89,7 +93,18 @@ fun OperatorScanScreen(state: OperatorUiState, onBack: () -> Unit, onManual: () 
                                 Uri.fromParts("package", context.packageName, null)))
                         }, onManual = onManual)
                     else -> {
-                        CameraWindow(paused) { QrCameraPreview(paused, onScanned, { cameraFailed = true }, Modifier.fillMaxSize()) }
+                        CameraWindow(paused) {
+                            QrCameraPreview(paused, onCode = { code ->
+                                if (onScanned(code)) {
+                                    val feedback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        HapticFeedbackConstants.CONFIRM
+                                    } else {
+                                        HapticFeedbackConstants.VIRTUAL_KEY
+                                    }
+                                    view.performHapticFeedback(feedback)
+                                }
+                            }, onCameraError = { cameraFailed = true }, modifier = Modifier.fillMaxSize())
+                        }
                         if (state.scanError != null) Text(state.scanError, color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("scan-error"))
                         if (!reading) Text("Apunta la cámara al QR del cliente. Solo se leen cupones de PlanYa.",

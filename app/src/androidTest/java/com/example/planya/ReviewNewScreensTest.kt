@@ -68,7 +68,7 @@ class ReviewNewScreensTest {
         var rescans = 0
         compose.setContent { PlanesTheme {
             OperatorScanScreen(OperatorUiState(receipt = OperatorReceipt("request-review", "benefit-review")),
-                onBack = {}, onManual = {}, onScanned = {}, onConfirm = {}, onRescan = { rescans++ })
+                onBack = {}, onManual = {}, onScanned = { false }, onConfirm = {}, onRescan = { rescans++ })
         } }
         compose.onNodeWithText("Cupón USADO").assertIsDisplayed()
         compose.onNodeWithText("Escanear otro cupón").performClick()
